@@ -36,7 +36,10 @@ func (p *panel) show() {
 	p.app.Event.Emit("shown")
 }
 
-func (p *panel) hide() { p.window.Hide() }
+func (p *panel) hide() {
+	p.window.Hide()
+	p.app.Event.Emit("hidden")
+}
 
 func (p *panel) toggle() {
 	application.InvokeSync(func() {

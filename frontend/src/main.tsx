@@ -97,10 +97,9 @@ function Panel() {
   const [brightness, { refetch: refetchBrightness, mutate: setBrightness }] = createResource(() => orNull(display.brightness()));
   const [sleep, { refetch: refetchSleep, mutate: setSleep }] = createResource(() => timer.state());
   const [confirmSuspend, setConfirmSuspend] = createSignal(false);
+  const [revealed, setRevealed] = createSignal(false);
 
   const focusApps = () => queueMicrotask(() => focusFirst('.app'));
-  let panelEl: HTMLElement | undefined;
-  let scrimEl: HTMLDivElement | undefined;
   let volumeButton: HTMLButtonElement | undefined;
   let outputButton: HTMLButtonElement | undefined;
   let brightnessButton: HTMLButtonElement | undefined;
@@ -112,13 +111,12 @@ function Panel() {
   let sleepQueue = Promise.resolve();
   let sleepRevision = 0;
 
-  /** enter slides the panel up and fades the scrim in each time it appears. */
-  const enter = () => {
-    const opts = { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' };
-    panelEl?.animate([{ transform: 'translateY(3rem)', opacity: 0 }, { transform: 'none', opacity: 1 }], opts);
-    scrimEl?.animate([{ opacity: 0 }, { opacity: 1 }], opts);
+  let revealFrame = 0;
+  const cancelReveal = () => {
+    cancelAnimationFrame(revealFrame);
+    setRevealed(false);
   };
-  onMount(enter);
+  onCleanup(cancelReveal);
 
   // Focus the first app once the list first arrives.
   let placed = false;
@@ -131,7 +129,11 @@ function Panel() {
   // Every time the panel appears: fresh state, focus on the apps.
   onCleanup(
     panel.onShown(() => {
-      enter();
+      // Wait for the hidden first frame before starting the one opening transition.
+      cancelReveal();
+      revealFrame = requestAnimationFrame(() => {
+        revealFrame = requestAnimationFrame(() => setRevealed(true));
+      });
       say('');
       setConfirmSuspend(false);
       refetchVolume();
@@ -141,6 +143,7 @@ function Panel() {
       void Promise.resolve(refetchApps()).then(focusApps);
     }),
   );
+  onCleanup(panel.onHidden(cancelReveal));
 
   const poll = setInterval(refetchSleep, 30_000);
   onCleanup(() => clearInterval(poll));
@@ -250,8 +253,8 @@ function Panel() {
 
   return (
     <>
-      <div class="scrim" ref={scrimEl} />
-      <main class="panel" ref={panelEl}>
+      <div class="scrim" classList={{ revealed: revealed() }} />
+      <main class="panel" classList={{ revealed: revealed() }}>
         <header>
           <div class="brand">
             PLUNZ <b>+</b> <span>Nexus</span>

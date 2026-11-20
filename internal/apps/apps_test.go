@@ -146,7 +146,13 @@ func TestCloseAllOnlyCatalogAppsAndClearsStartupGrace(t *testing.T) {
 	if count, err := l.CloseAll(); count != 2 || err != nil {
 		t.Fatalf("CloseAll = %d, %v", count, err)
 	}
-	if want := []string{"nz.plu.lounge", "rocks.shy.VacuumTube"}; !reflect.DeepEqual(classes, want) {
+	var want []string
+	for _, a := range Catalog {
+		if a.Class != "" {
+			want = append(want, a.Class)
+		}
+	}
+	if !reflect.DeepEqual(classes, want) {
 		t.Fatalf("classes %v, want %v", classes, want)
 	}
 	if err := l.Launch("lounge"); err != nil {
@@ -245,5 +251,77 @@ func TestHyprlandCloseAll(t *testing.T) {
 	}
 	if _, err := h.CloseAll([]string{"nz.plu.lounge"}); err == nil {
 		t.Fatal("CloseAll hid a Lua error")
+	}
+}
+
+func TestLaunchPassesArguments(t *testing.T) {
+	l, started := testLauncher("flatpak:com.valvesoftware.Steam")
+	if err := l.Launch("flatpak:com.valvesoftware.Steam"); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"flatpak", "run", "com.valvesoftware.Steam", "-gamepadui"}}
+	if !reflect.DeepEqual(*started, want) {
+		t.Fatalf("started %v, want %v", *started, want)
+	}
+}
+
+func TestCatalogIsConsistent(t *testing.T) {
+	ids, commands := map[string]bool{}, map[string]bool{}
+	for _, a := range Catalog {
+		if a.ID == "" || ids[a.ID] || commands[a.Command] {
+			t.Errorf("%s: missing or duplicate ID or command", a.Name)
+		}
+		ids[a.ID], commands[a.Command] = true, true
+		if a.Category != Video && a.Category != Games {
+			t.Errorf("%s: unknown category %q", a.Name, a.Category)
+		}
+		switch a.Source {
+		case Flathub:
+			if a.FlatpakID() == "" || a.DesktopID != a.FlatpakID() {
+				t.Errorf("%s: a Flathub app needs a flatpak: command matching its desktop ID", a.Name)
+			}
+		case External:
+			if a.FlatpakID() != "" || !strings.HasPrefix(a.Website, "https://") {
+				t.Errorf("%s: an external app needs a command and an https website", a.Name)
+			}
+		default:
+			t.Errorf("%s: unknown source %q", a.Name, a.Source)
+		}
+	}
+}
+
+func TestFind(t *testing.T) {
+	l, _ := testLauncher()
+	if a, ok := l.Find("kodi"); !ok || a.FlatpakID() != "tv.kodi.Kodi" {
+		t.Fatalf("Find(kodi) = %+v, %v", a, ok)
+	}
+	if _, ok := l.Find("nope"); ok {
+		t.Fatal("Find found an app outside the catalog")
+	}
+}
+
+func TestFlatpakListIsReadOncePerRefresh(t *testing.T) {
+	dir := t.TempDir()
+	count := filepath.Join(dir, "count")
+	script := "#!/bin/sh\necho x >> " + count + "\nprintf 'tv.kodi.Kodi\\nrocks.shy.VacuumTube\\n'\n"
+	if err := os.WriteFile(filepath.Join(dir, "flatpak"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	calls := func() int {
+		b, _ := os.ReadFile(count)
+		return strings.Count(string(b), "x")
+	}
+	f := &flatpakList{}
+	if !f.installed("flatpak:tv.kodi.Kodi") || !f.installed("flatpak:rocks.shy.VacuumTube") || f.installed("flatpak:org.libretro.RetroArch") {
+		t.Fatal("wrong installed answers")
+	}
+	if calls() != 1 {
+		t.Fatalf("flatpak ran %d times, want once", calls())
+	}
+	f.forget()
+	f.installed("flatpak:tv.kodi.Kodi")
+	if calls() != 2 {
+		t.Fatalf("flatpak ran %d times after forget, want twice", calls())
 	}
 }

@@ -1,6 +1,6 @@
 // Package apps knows the TV apps Nexus can open: which are installed, how
-// to start them, and their icons. The catalog is fixed; nothing outside it
-// can be launched.
+// to start them, and their icons. The catalog is fixed: nothing outside it
+// can be launched or installed.
 package apps
 
 import (
@@ -14,22 +14,71 @@ import (
 	"time"
 )
 
+// Source says how a catalog app gets installed.
+type Source string
+
+const (
+	// Flathub apps install from Flathub through Nexus.
+	Flathub Source = "flathub"
+	// External apps have their own installer; Website says where it is.
+	External Source = "external"
+)
+
+// Categories group the catalog in the store.
+const (
+	Video = "video"
+	Games = "games"
+)
+
 // App is a catalog entry. Command is an executable name, or "flatpak:<id>"
 // for a Flatpak.
 type App struct {
-	Name      string `json:"name"`
-	Command   string `json:"command"`
+	// ID is stable across versions; the UI keys descriptions on it.
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Command  string   `json:"command"`
+	Args     []string `json:"-"`
+	Category string   `json:"category"`
+	Source   Source   `json:"source"`
+	Website  string   `json:"website,omitempty"`
+	// DesktopID names the app's desktop entry, which gives its icon.
 	DesktopID string `json:"-"`
-	// Class is the window class (Wayland app ID) of the app's windows.
+	// Class is the window class (Wayland app ID) of the app's windows, or
+	// empty when it is unknown; such apps always start a new instance.
 	Class string `json:"-"`
 	// Icon is a data: URL, or empty when no icon was found.
 	Icon string `json:"icon"`
 }
 
-// Catalog is the list of apps Nexus offers, in display order.
+// FlatpakID returns the Flatpak application ID, or "" for other apps.
+func (a App) FlatpakID() string {
+	id, _ := strings.CutPrefix(a.Command, "flatpak:")
+	if id == a.Command {
+		return ""
+	}
+	return id
+}
+
+// Catalog is the list of apps Nexus offers, in display order. Every app
+// works with the arrow keys, Enter, and Back, and fills the screen.
 var Catalog = []App{
-	{Name: "Lounge", Command: "lounge", DesktopID: "nz.plu.lounge", Class: "nz.plu.lounge"},
-	{Name: "VacuumTube", Command: "flatpak:rocks.shy.VacuumTube", DesktopID: "rocks.shy.VacuumTube", Class: "rocks.shy.VacuumTube"},
+	{ID: "lounge", Name: "Lounge", Command: "lounge", Category: Video, Source: External, Website: "https://lounge.plu.nz/", DesktopID: "nz.plu.lounge", Class: "nz.plu.lounge"},
+	{ID: "vacuumtube", Name: "VacuumTube", Command: "flatpak:rocks.shy.VacuumTube", Category: Video, Source: Flathub, DesktopID: "rocks.shy.VacuumTube", Class: "rocks.shy.VacuumTube"},
+	{ID: "kodi", Name: "Kodi", Command: "flatpak:tv.kodi.Kodi", Category: Video, Source: Flathub, DesktopID: "tv.kodi.Kodi", Class: "Kodi"},
+	{ID: "jellyfin", Name: "Jellyfin", Command: "flatpak:org.jellyfin.JellyfinDesktop", Category: Video, Source: Flathub, DesktopID: "org.jellyfin.JellyfinDesktop", Class: "org.jellyfin.JellyfinDesktop"},
+	{ID: "moonlight", Name: "Moonlight", Command: "flatpak:com.moonlight_stream.Moonlight", Category: Games, Source: Flathub, DesktopID: "com.moonlight_stream.Moonlight", Class: "com.moonlight_stream.Moonlight"},
+	{ID: "steam", Name: "Steam", Command: "flatpak:com.valvesoftware.Steam", Args: []string{"-gamepadui"}, Category: Games, Source: Flathub, DesktopID: "com.valvesoftware.Steam", Class: "steam"},
+	{ID: "retroarch", Name: "RetroArch", Command: "flatpak:org.libretro.RetroArch", Category: Games, Source: Flathub, DesktopID: "org.libretro.RetroArch", Class: "com.libretro.RetroArch"},
+}
+
+// Find returns the catalog app with this ID.
+func (l *Launcher) Find(id string) (App, bool) {
+	for _, a := range l.Catalog {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return App{}, false
 }
 
 // ErrUnknown is returned for a command that is not in the catalog.
@@ -54,6 +103,9 @@ type Launcher struct {
 	Focus func(class string) (bool, error)
 	// CloseWindows asks the compositor to close all windows of catalog classes.
 	CloseWindows func(classes []string) (int, error)
+	// Forget drops what Installed remembers, after an install or removal.
+	// Nil when Installed remembers nothing.
+	Forget func()
 	// Now is the clock; tests replace it.
 	Now func() time.Time
 
@@ -67,7 +119,8 @@ const startupGrace = 20 * time.Second
 
 // New returns a Launcher for the real system.
 func New() *Launcher {
-	l := &Launcher{Catalog: Catalog, Installed: installed, Start: start, Icons: SystemIcons(), Now: time.Now}
+	flatpaks := &flatpakList{}
+	l := &Launcher{Catalog: Catalog, Installed: flatpaks.installed, Forget: flatpaks.forget, Start: start, Icons: SystemIcons(), Now: time.Now}
 	if h := NewHyprland(); h != nil {
 		l.Focus = h.Focus
 		l.CloseWindows = h.CloseAll
@@ -133,10 +186,10 @@ func (l *Launcher) Launch(command string) error {
 			}
 		}
 		var err error
-		if id, ok := strings.CutPrefix(command, "flatpak:"); ok {
-			err = l.Start("flatpak", "run", id)
+		if id := a.FlatpakID(); id != "" {
+			err = l.Start("flatpak", append([]string{"run", id}, a.Args...)...)
 		} else {
-			err = l.Start(command)
+			err = l.Start(command, a.Args...)
 		}
 		if err == nil {
 			l.mu.Lock()
@@ -167,12 +220,45 @@ func (l *Launcher) now() time.Time {
 	return time.Now()
 }
 
-func installed(command string) bool {
-	if id, ok := strings.CutPrefix(command, "flatpak:"); ok {
-		return exec.Command("flatpak", "info", id).Run() == nil
+// flatpakList answers "is this installed?" for every catalog app from one
+// `flatpak list`, which is much faster than a `flatpak info` per app. The
+// answer is kept briefly, so one panel refresh lists Flatpaks once.
+type flatpakList struct {
+	mu  sync.Mutex
+	at  time.Time
+	ids map[string]bool
+}
+
+const flatpakListTTL = 2 * time.Second
+
+func (f *flatpakList) installed(command string) bool {
+	id, ok := strings.CutPrefix(command, "flatpak:")
+	if !ok {
+		_, err := exec.LookPath(command)
+		return err == nil
 	}
-	_, err := exec.LookPath(command)
-	return err == nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.ids == nil || time.Since(f.at) > flatpakListTTL {
+		f.ids = map[string]bool{}
+		f.at = time.Now()
+		out, err := exec.Command("flatpak", "list", "--app", "--columns=application").Output()
+		if err != nil {
+			return false
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				f.ids[line] = true
+			}
+		}
+	}
+	return f.ids[id]
+}
+
+func (f *flatpakList) forget() {
+	f.mu.Lock()
+	f.ids = nil
+	f.mu.Unlock()
 }
 
 // start runs the app in its own session, so it outlives Nexus and does not

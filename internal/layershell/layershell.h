@@ -8,4 +8,10 @@
 // or the window is already on screen. Call it on the GTK main thread.
 int nexus_layer_init(void *gtk_window, const char *connector);
 
+// nexus_window_transparent stops GTK from painting the theme's window
+// background behind the page, so only what the page paints is opaque.
+// Wails does not do this for GTK 4. Call it on the GTK main thread, after
+// nexus_layer_init.
+void nexus_window_transparent(void *gtk_window);
+
 #endif

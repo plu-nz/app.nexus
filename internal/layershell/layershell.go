@@ -21,3 +21,10 @@ func Init(window unsafe.Pointer, connector string) bool {
 	defer C.free(unsafe.Pointer(c))
 	return C.nexus_layer_init(window, c) == 1
 }
+
+// Transparent stops GTK from painting the theme's window background behind
+// the page, which Wails leaves in place on GTK 4. Call it on the GTK main
+// thread.
+func Transparent(window unsafe.Pointer) {
+	C.nexus_window_transparent(window)
+}

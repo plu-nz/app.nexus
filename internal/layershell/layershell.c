@@ -41,3 +41,17 @@ int nexus_layer_init(void *gtk_window, const char *connector) {
     if (m) gtk_layer_set_monitor(w, m);
     return 1;
 }
+
+void nexus_window_transparent(void *gtk_window) {
+    GtkWidget *w = GTK_WIDGET(gtk_window);
+    static GtkCssProvider *provider = NULL;
+    if (!provider) {
+        provider = gtk_css_provider_new();
+        // Not fully transparent: with an alpha of 0 WebKit stops painting
+        // the page at all (WebKitGTK 2.54, GTK 4.24).
+        gtk_css_provider_load_from_string(provider, "window.nexus-transparent { background: rgba(0,0,0,0.01); }");
+        gtk_style_context_add_provider_for_display(gtk_widget_get_display(w), GTK_STYLE_PROVIDER(provider),
+                                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    }
+    gtk_widget_add_css_class(w, "nexus-transparent");
+}

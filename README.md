@@ -30,6 +30,14 @@ Nexus keeps running while hidden, so the sleep timer survives. To load a new ver
 
 On Wayland compositors with the layer shell (Hyprland, Sway, KDE, and other wlroots compositors) the panel is an overlay layer: it covers the whole output, above fullscreen video, and takes the keyboard while shown. Clicking outside the panel hides it. The compositor puts it on the focused output; set `NEXUS_OUTPUT` to an output name (such as `HDMI-A-1`) to pin it to the TV. Where there is no layer shell, Nexus shows a normal window.
 
+The panel is translucent, so what is playing stays visible behind it. Blurring what is behind it is up to the compositor. On Hyprland, add a layer rule for the `nexus` namespace (with `decoration.blur.enabled`):
+
+```lua
+hl.layer_rule({ match = { namespace = "^nexus$" }, blur = true, ignore_alpha = 0.3 })
+```
+
+`ignore_alpha` keeps the nearly clear dimming around the panel sharp.
+
 ## Theme
 
 By default Nexus follows the desktop's GTK theme: it reads the theme's colors through GTK and updates when the theme or its light/dark preference changes. The Theme button switches to Nexus's own colors instead.

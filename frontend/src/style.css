@@ -9,6 +9,9 @@
   --plz-accent: #fab387;
   --plz-on-accent: #11111b;
   --plz-danger: #f38ba8;
+  /* How much of the panel is paint; the rest shows the screen behind it,
+     blurred when the compositor blurs the "nexus" layer. */
+  --glass: 72%;
   color-scheme: dark;
   /* Sizes are in rem, and 1rem is 18px on a 1920px-wide screen, so the
      panel keeps its proportions from 720p to 4K. */
@@ -30,26 +33,30 @@ body {
   overflow: hidden;
 }
 
-/* Dims whatever is behind the panel. Black is fine here: it only darkens
-   the desktop or video underneath. */
+/* Lightly darkens the screen under the panel so its text stays readable.
+   Black is fine here: it only darkens the desktop or video underneath. */
 .scrim {
   position: fixed;
   inset: 0;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.15) 60%);
+  background: linear-gradient(to top, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.12) 45%, transparent 70%);
 }
 
 .panel {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 2.4rem;
+  right: 2.4rem;
+  bottom: 2rem;
   display: grid;
-  gap: 1.2rem;
-  padding: 1.3rem 3rem 1.6rem;
-  background: linear-gradient(180deg, var(--plz-surface), var(--plz-bg));
-  border-top: 1px solid color-mix(in srgb, var(--plz-line) 70%, var(--plz-bg));
-  border-radius: 1.6rem 1.6rem 0 0;
-  box-shadow: 0 -0.5rem 2rem rgb(0 0 0 / 0.35);
+  gap: 1.1rem;
+  padding: 1.2rem 2.2rem 1.4rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--plz-surface) var(--glass), transparent),
+    color-mix(in srgb, var(--plz-bg) calc(var(--glass) + 8%), transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--plz-text) 14%, transparent);
+  border-radius: 1.6rem;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.4);
 }
 
 header,
@@ -101,8 +108,8 @@ button {
   height: 3rem;
   padding: 0 1.1rem;
   color: var(--plz-text);
-  background: var(--plz-raised);
-  border: 1px solid var(--plz-line);
+  background: color-mix(in srgb, var(--plz-raised) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--plz-text) 12%, transparent);
   border-radius: 0.8rem;
   font: inherit;
   white-space: nowrap;

@@ -107,6 +107,7 @@ func main() {
 				if os.Getenv("NEXUS_WINDOWED") == "" && !layershell.Init(p.window.NativeWindow(), os.Getenv("NEXUS_OUTPUT")) {
 					log.Print("the compositor has no layer shell; showing a normal window")
 				}
+				layershell.Transparent(p.window.NativeWindow())
 				watchTheme(p, themes)
 				p.show()
 			})

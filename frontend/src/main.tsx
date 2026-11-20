@@ -84,6 +84,16 @@ function Panel() {
   let armTimer: ReturnType<typeof setTimeout> | undefined;
 
   const focusApps = () => queueMicrotask(() => focusFirst('.app'));
+  let panelEl: HTMLElement | undefined;
+  let scrimEl: HTMLDivElement | undefined;
+
+  /** enter slides the panel up and fades the scrim in each time it appears. */
+  const enter = () => {
+    const opts = { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' };
+    panelEl?.animate([{ transform: 'translateY(3rem)', opacity: 0 }, { transform: 'none', opacity: 1 }], opts);
+    scrimEl?.animate([{ opacity: 0 }, { opacity: 1 }], opts);
+  };
+  onMount(enter);
 
   // Focus the first app once the list first arrives.
   let placed = false;
@@ -96,6 +106,7 @@ function Panel() {
   // Every time the panel appears: fresh state, focus on the apps.
   onCleanup(
     panel.onShown(() => {
+      enter();
       say('');
       setArmed(undefined);
       refetchVolume();
@@ -182,8 +193,8 @@ function Panel() {
 
   return (
     <>
-      <div class="scrim" onClick={() => void panel.hide()} />
-      <main class="panel">
+      <div class="scrim" ref={scrimEl} onClick={() => void panel.hide()} />
+      <main class="panel" ref={panelEl}>
         <header>
           <div class="brand">
             PLUNZ <b>+</b> <span>Nexus</span>

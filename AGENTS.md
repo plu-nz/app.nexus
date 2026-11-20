@@ -7,7 +7,9 @@ Nexus (`app.nexus`) is a PLUNZ standalone Linux TV panel. Shared PLUNZ decisions
 The app is one Go binary built with Wails 3. The window is GTK 4 with WebKitGTK 6.0, and the UI is SolidJS + TypeScript built by Vite.
 
 - `main.go` wires the services, makes the window an overlay, and runs the single-instance socket. `services.go` holds the Wails services the UI calls by name (`main.<Service>.<Method>`); they are thin adapters.
-- `internal/apps`: the fixed app catalog, install detection, launch-or-focus (on Hyprland it focuses an open window of the app's class through `hyprctl` and makes it fullscreen; otherwise it starts the app in its own session, reaped), and icon lookup from `.desktop` files and the hicolor theme.
+- `internal/apps`: the fixed app catalog (ID, category, source, launch arguments, window class), install detection from one `flatpak list` per refresh, launch-or-focus (on Hyprland it focuses an open window of the app's class through `hyprctl` and makes it fullscreen; otherwise it starts the app in its own session, reaped), and icon lookup from `.desktop` files and the hicolor theme.
+- `internal/flatpak`: runs `flatpak` for the user installation: list, updates, Flathub info, install, update, uninstall. It forces English output for parsing, reads progress from flatpak's per-ref lines, and cancels with SIGTERM. Test fixtures are real flatpak output.
+- `internal/store`: catalog app states and a one-at-a-time queue of install, update, and remove jobs with cancel. It refuses apps outside the catalog, apps with their own installer, and changes to system installs.
 - `internal/audio`: volume, mute, and the default output through `wpctl` and `pw-dump`.
 - `internal/brightness`: `brightnessctl` for backlights, `ddcutil` (DDC/CI) for monitors and TVs.
 - `internal/sleeptimer`: the suspend countdown. It lives in the process so it survives hiding the panel.
@@ -15,9 +17,11 @@ The app is one Go binary built with Wails 3. The window is GTK 4 with WebKitGTK 
 - `internal/layershell`: gtk4-layer-shell setup, a full-screen overlay layer with exclusive keyboard.
 - `internal/gtktheme`: reads the active GTK theme's named colors through GTK and reports theme changes; the UI gets them as `theme` events.
 - `frontend/src`:
-  - `main.tsx`: the single-row panel and suspend confirmation dialog;
+  - `main.tsx`: the single-row panel, its scrolling app strip, and the confirmation dialogs;
+  - `store.tsx`: the full-screen store, its app detail, and the remove confirmation;
+  - `status.ts`: the header status line;
   - `api.ts`: the typed service calls;
-  - `nav.ts`: spatial navigation for remotes (arrow keys move to the nearest `[data-nav]` element) and the `.focused` class;
+  - `nav.ts`: spatial navigation for remotes (arrow keys move to the nearest `[data-nav]` element), `[data-nav-row]` strips that scroll and walk in order, `[data-nav-scope]` dialogs that keep focus inside, and the `.focused` class;
   - `theme.ts`: maps the GTK palette onto the `--plz-*` tokens;
   - `i18n.ts`: the en/pt/es strings.
 - `scripts/toggle.sh` toggles the panel or starts Nexus as the `plunz-nexus` user unit.
@@ -53,6 +57,7 @@ UI changes need a check in the real window. On Hyprland you can test without dis
 3. For key tests, use `NEXUS_WINDOWED=1`, launch with `hl.dsp.exec_cmd(cmd, { workspace = '<n> silent' })`, and send keys with `hl.dsp.send_key_state({ ..., window = 'pid:<test pid>' })`.
 4. For the overlay, set `NEXUS_OUTPUT` to the headless output and keep the run short: the overlay takes the user's keyboard while it is shown.
 5. Capture the output with `grim -o <output>`.
+6. For store tests, give the test instance its own Flatpak installation with `FLATPAK_USER_DIR=<dir>` and add `<dir>/exports/share` to `XDG_DATA_DIRS` for icons. Installs then never touch the user's apps. Apps installed for all users still show, so do not remove them in a test. Run catalog apps from that installation with `HOME=<dir>/home` too, so their data stays out of the user's `~/.var/app`, and close them with `flatpak kill <instance>`: `bwrap` ignores SIGTERM.
 
 Never press the power buttons in a test. Brightness and volume act on the real machine.
 

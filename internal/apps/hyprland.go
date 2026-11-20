@@ -74,6 +74,35 @@ func (h *Hyprland) CloseAll(classes []string) (int, error) {
 	return len(addresses), err
 }
 
+// Open reports which of classes have at least one window.
+func (h *Hyprland) Open(classes []string) (map[string]bool, error) {
+	out, err := h.Run("hyprctl", "-j", "clients")
+	if err != nil {
+		return nil, err
+	}
+	return openClasses(out, classes)
+}
+
+// openClasses returns the allowed classes that have a window with a valid
+// address in `hyprctl -j clients`.
+func openClasses(clients string, classes []string) (map[string]bool, error) {
+	allowed := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		allowed[class] = true
+	}
+	var list []client
+	if err := json.Unmarshal([]byte(clients), &list); err != nil {
+		return nil, fmt.Errorf("reading hyprctl clients: %w", err)
+	}
+	open := map[string]bool{}
+	for _, c := range list {
+		if allowed[c.Class] && addressPattern.MatchString(c.Address) {
+			open[c.Class] = true
+		}
+	}
+	return open, nil
+}
+
 // matchingWindows keeps only windows of explicitly allowed classes and valid
 // addresses before they are used in a Hyprland command.
 func matchingWindows(clients string, classes []string) ([]string, error) {

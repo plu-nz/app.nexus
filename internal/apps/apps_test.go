@@ -325,3 +325,73 @@ func TestFlatpakListIsReadOncePerRefresh(t *testing.T) {
 		t.Fatalf("flatpak ran %d times after forget, want twice", calls())
 	}
 }
+
+func TestAvailableMarksOpenApps(t *testing.T) {
+	l, _ := testLauncher("lounge", "flatpak:rocks.shy.VacuumTube")
+	var asked []string
+	l.OpenWindows = func(classes []string) (map[string]bool, error) {
+		asked = classes
+		return map[string]bool{"rocks.shy.VacuumTube": true}, nil
+	}
+	got := l.Available()
+	if !reflect.DeepEqual(asked, []string{"nz.plu.lounge", "rocks.shy.VacuumTube"}) {
+		t.Fatalf("asked about %v", asked)
+	}
+	if len(got) != 2 || got[0].Open || !got[1].Open {
+		t.Fatalf("Available = %+v, want only VacuumTube open", got)
+	}
+	l.OpenWindows = func([]string) (map[string]bool, error) { return nil, errors.New("no hyprctl") }
+	for _, a := range l.Available() {
+		if a.Open {
+			t.Fatalf("%s reads as open after an error", a.Name)
+		}
+	}
+}
+
+func TestCloseOnlyThatAppAndClearsStartupGrace(t *testing.T) {
+	l, started := testLauncher("lounge")
+	l.Focus = func(string) (bool, error) { return false, nil }
+	var classes []string
+	l.CloseWindows = func(got []string) (int, error) {
+		classes = got
+		return 1, nil
+	}
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := l.Close("lounge"); count != 1 || err != nil {
+		t.Fatalf("Close = %d, %v", count, err)
+	}
+	if !reflect.DeepEqual(classes, []string{"nz.plu.lounge"}) {
+		t.Fatalf("closed classes %v, want only Lounge's", classes)
+	}
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*started) != 2 {
+		t.Fatalf("started %v, want relaunch after close", *started)
+	}
+}
+
+func TestCloseRejectsOtherCommands(t *testing.T) {
+	l, _ := testLauncher("lounge")
+	l.CloseWindows = func([]string) (int, error) { t.Fatal("closed windows"); return 0, nil }
+	if _, err := l.Close("rm -rf /"); !errors.Is(err, ErrUnknown) {
+		t.Fatalf("Close = %v, want ErrUnknown", err)
+	}
+	l.CloseWindows = nil
+	if _, err := l.Close("lounge"); err == nil {
+		t.Fatal("Close succeeded without a compositor")
+	}
+}
+
+func TestHyprlandOpen(t *testing.T) {
+	h := &Hyprland{Run: func(string, ...string) (string, error) { return clientsJSON, nil }}
+	open, err := h.Open([]string{"nz.plu.lounge", "tv.kodi.Kodi", "evil"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(open, map[string]bool{"nz.plu.lounge": true}) {
+		t.Fatalf("Open = %v, want only Lounge (evil has a bad address)", open)
+	}
+}

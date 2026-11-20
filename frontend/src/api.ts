@@ -3,7 +3,8 @@ import { Call, Events } from '@wailsio/runtime';
 /** The Go services, called by name (main.<Service>.<Method>). */
 const call = <T = void>(method: string, ...args: unknown[]) => Call.ByName(`main.${method}`, ...args) as Promise<T>;
 
-export type TVApp = { name: string; command: string; icon: string };
+/** open: the app has a window right now. */
+export type TVApp = { name: string; command: string; icon: string; open: boolean };
 export type TimerState = { minutes: number; remaining: number; error: string };
 export type Volume = { percent: number; muted: boolean };
 export type Output = { id: number; name: string; default: boolean };
@@ -66,6 +67,8 @@ export const appsApi = {
   list: () => call<TVApp[]>('AppsService.List'),
   launch: (command: string) => call('AppsService.Launch', command),
   closeAll: () => call<number>('AppsService.CloseAll'),
+  /** close asks every window of one app to close; it returns how many. */
+  close: (command: string) => call<number>('AppsService.Close', command),
 };
 
 export const timer = {

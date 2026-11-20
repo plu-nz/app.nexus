@@ -233,6 +233,31 @@ button.focused {
   color: var(--plz-danger);
 }
 
+/* An open app's Close button sits over the lower part of its tile. */
+.app-slot {
+  position: relative;
+  flex: none;
+}
+
+.app-close {
+  position: absolute;
+  inset: auto 0.6rem 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--plz-surface);
+  border-color: var(--plz-danger);
+  color: var(--plz-danger);
+  font-weight: 700;
+}
+
+.app-close.focused {
+  background: var(--plz-danger);
+  border-color: var(--plz-danger);
+  color: var(--plz-on-accent);
+}
+
 .control-tile {
   gap: 0.3rem;
 }

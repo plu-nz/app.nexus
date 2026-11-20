@@ -48,6 +48,8 @@ type App struct {
 	Class string `json:"-"`
 	// Icon is a data: URL, or empty when no icon was found.
 	Icon string `json:"icon"`
+	// Open reports whether the app has a window right now.
+	Open bool `json:"open"`
 }
 
 // FlatpakID returns the Flatpak application ID, or "" for other apps.
@@ -103,6 +105,9 @@ type Launcher struct {
 	Focus func(class string) (bool, error)
 	// CloseWindows asks the compositor to close all windows of catalog classes.
 	CloseWindows func(classes []string) (int, error)
+	// OpenWindows reports which of the classes have a window. Nil means
+	// windows cannot be found, so no app reads as open.
+	OpenWindows func(classes []string) (map[string]bool, error)
 	// Forget drops what Installed remembers, after an install or removal.
 	// Nil when Installed remembers nothing.
 	Forget func()
@@ -124,6 +129,7 @@ func New() *Launcher {
 	if h := NewHyprland(); h != nil {
 		l.Focus = h.Focus
 		l.CloseWindows = h.CloseAll
+		l.OpenWindows = h.Open
 	}
 	return l
 }
@@ -132,7 +138,7 @@ func New() *Launcher {
 // It returns the number of windows that received a close request.
 func (l *Launcher) CloseAll() (int, error) {
 	if l.CloseWindows == nil {
-		return 0, errors.New("closing apps is unavailable on this compositor")
+		return 0, errNoClose
 	}
 	classes := make([]string, 0, len(l.Catalog))
 	for _, a := range l.Catalog {
@@ -149,6 +155,31 @@ func (l *Launcher) CloseAll() (int, error) {
 	return closed, err
 }
 
+// errNoClose is returned when the compositor cannot close app windows.
+var errNoClose = errors.New("closing apps is unavailable on this compositor")
+
+// Close asks the compositor to close every window of the catalog app with
+// this command. It returns the number of windows that received a close
+// request.
+func (l *Launcher) Close(command string) (int, error) {
+	for _, a := range l.Catalog {
+		if a.Command != command {
+			continue
+		}
+		if l.CloseWindows == nil || a.Class == "" {
+			return 0, errNoClose
+		}
+		closed, err := l.CloseWindows([]string{a.Class})
+		if err == nil {
+			l.mu.Lock()
+			delete(l.launched, command)
+			l.mu.Unlock()
+		}
+		return closed, err
+	}
+	return 0, ErrUnknown
+}
+
 // Available returns the installed catalog apps, with their icons.
 func (l *Launcher) Available() []App {
 	found := []App{}
@@ -158,6 +189,23 @@ func (l *Launcher) Available() []App {
 		}
 		a.Icon = l.Icons.DataURL(a.DesktopID)
 		found = append(found, a)
+	}
+	if l.OpenWindows == nil {
+		return found
+	}
+	classes := make([]string, 0, len(found))
+	for _, a := range found {
+		if a.Class != "" {
+			classes = append(classes, a.Class)
+		}
+	}
+	open, err := l.OpenWindows(classes)
+	if err != nil {
+		log.Printf("finding open apps: %v", err)
+		return found
+	}
+	for i := range found {
+		found[i].Open = found[i].Class != "" && open[found[i].Class]
 	}
 	return found
 }

@@ -44,6 +44,11 @@ func (s *AppsService) CloseAll() (int, error) {
 	return s.launcher.CloseAll()
 }
 
+// Close asks the compositor to close every window of one catalog app.
+func (s *AppsService) Close(command string) (int, error) {
+	return s.launcher.Close(command)
+}
+
 // Launch hides the panel and opens a catalog app. The panel goes first:
 // while it is on screen it holds the keyboard, and the compositor would
 // not move focus to the app.

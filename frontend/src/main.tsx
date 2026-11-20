@@ -33,7 +33,14 @@ function AppTile(props: { app: TVApp }) {
     void attempt(() => appsApi.launch(props.app.command));
   };
   return (
-    <button class="app" data-nav data-app-tile onClick={open}>
+    <button
+      class="app"
+      data-nav
+      data-app-tile
+      data-command={props.app.command}
+      aria-description={props.app.open ? t('closeAppHint') : undefined}
+      onClick={open}
+    >
       <Show when={props.app.icon} fallback={<span class="glyph">{props.app.name.slice(0, 1)}</span>}>
         <img src={props.app.icon} alt="" />
       </Show>
@@ -84,9 +91,13 @@ function Panel() {
   const [confirmSuspend, setConfirmSuspend] = createSignal(false);
   const [confirmCloseApps, setConfirmCloseApps] = createSignal(false);
   const [showCloseApps, setShowCloseApps] = createSignal(false);
+  /** The open app whose Close button shows under its tile. */
+  const [closeFor, setCloseFor] = createSignal<string | null>(null);
   const [revealed, setRevealed] = createSignal(false);
 
   const firstAppButton = () => document.querySelector<HTMLButtonElement>('[data-app-tile]');
+  const appTile = (command: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-app-tile]')].find((el) => el.dataset.command === command);
   const focusApps = () => queueMicrotask(() => focusFirst('[data-app-tile]'));
   let volumeButton: HTMLButtonElement | undefined;
   let outputButton: HTMLButtonElement | undefined;
@@ -128,6 +139,7 @@ function Panel() {
       setConfirmSuspend(false);
       setConfirmCloseApps(false);
       setShowCloseApps(false);
+      setCloseFor(null);
       refetchVolume();
       refetchOutputs();
       refetchBrightness();
@@ -138,6 +150,7 @@ function Panel() {
   onCleanup(panel.onHidden(() => {
     cancelReveal();
     setShowCloseApps(false);
+    setCloseFor(null);
     if (view() === 'store') {
       setView('panel');
       void panel.setExpanded(false);
@@ -149,6 +162,7 @@ function Panel() {
   const openStore = () => {
     say('');
     setShowCloseApps(false);
+    setCloseFor(null);
     setView('store');
     void panel.setExpanded(true);
   };
@@ -180,6 +194,30 @@ function Panel() {
       return;
     }
     const focused = document.activeElement;
+    const modified = e.altKey || e.ctrlKey || e.metaKey;
+    // Down on an open app offers to close only that app.
+    if (e.key === 'ArrowDown' && !modified && focused instanceof HTMLElement && focused.hasAttribute('data-app-tile')) {
+      const command = focused.dataset.command;
+      if (command && apps()?.find((app) => app.command === command)?.open) {
+        e.preventDefault();
+        setCloseFor(command);
+        queueMicrotask(() => document.querySelector<HTMLButtonElement>('[data-app-close]')?.focus());
+        return;
+      }
+    }
+    if (focused instanceof HTMLElement && focused.hasAttribute('data-app-close')) {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || backKeys.has(e.key)) {
+        e.preventDefault();
+        const command = closeFor();
+        setCloseFor(null);
+        if (command) queueMicrotask(() => appTile(command)?.focus());
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        return;
+      }
+    }
     if (e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey && !e.metaKey && focused === firstAppButton()) {
       e.preventDefault();
       setShowCloseApps(true);
@@ -288,6 +326,28 @@ function Panel() {
     refetchSleep();
   };
 
+  /** After windows were asked to close: read which apps are open again. */
+  const refreshOpenApps = () =>
+    setTimeout(() => {
+      const command = (document.activeElement as HTMLElement | null)?.dataset.command;
+      void Promise.resolve(refetchApps()).then(() => {
+        // The row is rebuilt: keep the remote on the same app.
+        if (command && (document.activeElement === document.body || !document.activeElement)) appTile(command)?.focus();
+      });
+    }, 1500);
+
+  const closeApp = async (app: TVApp) => {
+    setCloseFor(null);
+    appTile(app.command)?.focus();
+    try {
+      const count = await appsApi.close(app.command);
+      say(t(count ? 'closingApp' : 'appNotOpen', { name: app.name }));
+    } catch (err) {
+      say(errorText(err));
+    }
+    refreshOpenApps();
+  };
+
   const closeAllApps = async () => {
     setConfirmCloseApps(false);
     setShowCloseApps(false);
@@ -298,6 +358,7 @@ function Panel() {
     } catch (err) {
       say(errorText(err));
     }
+    refreshOpenApps();
   };
 
   return (
@@ -324,7 +385,28 @@ function Panel() {
                 <span>{t('closeApps')}</span>
               </button>
             </Show>
-            <For each={apps() ?? []}>{(app) => <AppTile app={app} />}</For>
+            <For each={apps() ?? []}>
+              {(app) => (
+                <div class="app-slot">
+                  <AppTile app={app} />
+                  <Show when={closeFor() === app.command}>
+                    <button
+                      class="app-close"
+                      data-nav
+                      data-app-close
+                      aria-label={t('closeAppNamed', { name: app.name })}
+                      onClick={() => void closeApp(app)}
+                      onFocusOut={() => {
+                        if (closeFor() === app.command) setCloseFor(null);
+                      }}
+                    >
+                      <span aria-hidden="true">×</span>
+                      <span>{t('closeApp')}</span>
+                    </button>
+                  </Show>
+                </div>
+              )}
+            </For>
             <button class="app store-tile" data-nav ref={storeButton} aria-description={t('moreAppsHint')} onClick={openStore}>
               <span class="store-icon" aria-hidden="true">+</span>
               <span>{t('moreApps')}</span>

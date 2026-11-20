@@ -7,6 +7,7 @@ Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from 
 - the installed TV apps from its catalog, with their own icons: Lounge, VacuumTube, Kodi, Jellyfin, Moonlight, Steam (in Big Picture), and RetroArch;
 - a More apps tile that opens a store to install, update, and remove those apps from Flathub;
 - a hidden Close apps button to the left of the apps, revealed with Left from the leftmost app; its confirmation closes every open window of the catalog apps;
+- on an app that is open, Down reveals a Close button over its tile; Enter closes every window of that app only;
 - a single horizontal row for apps, volume, audio output, brightness, and the sleep timer; the apps scroll on their own, so the controls stay in view;
 - Up/Down on volume adjusts by 5%; Enter mutes or unmutes;
 - when at least two audio outputs are available, Up/Down on output switches between them and Enter selects the next one;
@@ -18,6 +19,7 @@ Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from 
 Everything works with the arrow keys, Enter, and Back (Escape, Backspace, GoBack, BrowserBack, XF86Back, or Back), so any remote that sends keyboard keys can drive it. Opening an app hides the panel. On Hyprland, an app that is already open is brought to the front, fullscreen, instead of starting again; a second press while it is still starting is ignored.
 On Hyprland, confirming Close apps closes every open window of the catalog apps. The panel stays open.
 Right, Up, Down, or Back from the Close apps button hides it and returns focus to the first app. Canceling the confirmation hides it too.
+Down does nothing on an app that is not open. Up, Left, Right, or Back from an app's Close button hides it and returns focus to that app.
 The panel closes with Back or Escape.
 
 ## Store

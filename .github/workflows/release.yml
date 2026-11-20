@@ -18,6 +18,9 @@ jobs:
       - name: Install build dependencies
         run: pacman -Syu --noconfirm --needed base-devel git go github-cli gtk4 webkitgtk-6.0 gtk4-layer-shell
       - uses: actions/checkout@v7.0.1
+      # The container runs as a different user than the checkout's owner;
+      # trust it so go build can stamp the VCS revision.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: pnpm/action-setup@v6.1.1
         with:
           run_install: false

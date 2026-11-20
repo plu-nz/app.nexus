@@ -1,0 +1,22 @@
+{
+  "name": "nexus-site",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "deploy": "pnpm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@plunz/storybook": "github:plu-nz/lib.storybook#3449d90",
+    "solid-js": "1.9.19"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vite-plugin-solid": "2.11.17",
+    "wrangler": "4.149.0"
+  }
+}

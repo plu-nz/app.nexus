@@ -7,7 +7,7 @@ Nexus (`app.nexus`) is a PLUNZ standalone Linux TV panel. Shared PLUNZ decisions
 The app is one Go binary built with Wails 3. The window is GTK 4 with WebKitGTK 6.0, and the UI is SolidJS + TypeScript built by Vite.
 
 - `main.go` wires the services, makes the window an overlay, and runs the single-instance socket. `services.go` holds the Wails services the UI calls by name (`main.<Service>.<Method>`); they are thin adapters.
-- `internal/apps`: the fixed app catalog, install detection, launching (in its own session, reaped), and icon lookup from `.desktop` files and the hicolor theme.
+- `internal/apps`: the fixed app catalog, install detection, launch-or-focus (on Hyprland it focuses an open window of the app's class through `hyprctl` and makes it fullscreen; otherwise it starts the app in its own session, reaped), and icon lookup from `.desktop` files and the hicolor theme.
 - `internal/audio`: volume, mute, and the default output through `wpctl` and `pw-dump`.
 - `internal/brightness`: `brightnessctl` for backlights, `ddcutil` (DDC/CI) for monitors and TVs.
 - `internal/sleeptimer`: the suspend countdown. It lives in the process so it survives hiding the panel.

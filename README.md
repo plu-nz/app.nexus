@@ -9,7 +9,7 @@ Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from 
 - suspend, restart, and power off, with a second press to confirm restart and power off;
 - the language (English, Portuguese, Spanish) and the theme.
 
-Everything works with the arrow keys, Enter, and Back (Escape or Backspace), so any remote that sends keyboard keys can drive it. Opening an app hides the panel.
+Everything works with the arrow keys, Enter, and Back (Escape or Backspace), so any remote that sends keyboard keys can drive it. Opening an app hides the panel. On Hyprland, an app that is already open is brought to the front, fullscreen, instead of starting again; a second press while it is still starting is ignored.
 
 ## Install
 

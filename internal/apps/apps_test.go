@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testLauncher(installed ...string) (*Launcher, *[][]string) {
@@ -94,5 +95,87 @@ func TestIconFallsBackToDesktopIDAndPixmaps(t *testing.T) {
 	}
 	if got := f.DataURL("missing"); got != "" {
 		t.Fatalf("DataURL(missing) = %q, want empty", got)
+	}
+}
+
+func TestLaunchFocusesAnOpenWindow(t *testing.T) {
+	l, started := testLauncher("lounge")
+	var focused []string
+	l.Focus = func(class string) (bool, error) { focused = append(focused, class); return true, nil }
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*started) != 0 || !reflect.DeepEqual(focused, []string{"nz.plu.lounge"}) {
+		t.Fatalf("started %v, focused %v; want only a focus", *started, focused)
+	}
+}
+
+func TestLaunchWaitsForAStartingApp(t *testing.T) {
+	l, started := testLauncher("lounge")
+	now := time.Unix(1000, 0)
+	l.Now = func() time.Time { return now }
+	l.Focus = func(string) (bool, error) { return false, nil }
+	for range 3 {
+		if err := l.Launch("lounge"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(*started) != 1 {
+		t.Fatalf("started %v, want one launch while the window is on the way", *started)
+	}
+	now = now.Add(startupGrace + time.Second)
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*started) != 2 {
+		t.Fatalf("started %v, want a new launch after the grace period", *started)
+	}
+}
+
+const clientsJSON = `[
+ {"address":"0x5a1","class":"nz.plu.lounge","focusHistoryID":4},
+ {"address":"0x5a2","class":"nz.plu.lounge","focusHistoryID":1},
+ {"address":"0x5a3","class":"rocks.shy.VacuumTube","focusHistoryID":0},
+ {"address":"bad;rm","class":"evil","focusHistoryID":0}
+]`
+
+func TestNewestWindow(t *testing.T) {
+	cases := map[string]string{"nz.plu.lounge": "0x5a2", "rocks.shy.VacuumTube": "0x5a3", "kodi": "", "evil": ""}
+	for class, want := range cases {
+		if got, err := newestWindow(clientsJSON, class); err != nil || got != want {
+			t.Errorf("newestWindow(%s) = %q, %v; want %q", class, got, err, want)
+		}
+	}
+}
+
+func TestHyprlandFocus(t *testing.T) {
+	var script string
+	h := &Hyprland{Run: func(name string, args ...string) (string, error) {
+		if args[0] == "-j" {
+			return clientsJSON, nil
+		}
+		script = args[len(args)-1]
+		return "ok", nil
+	}}
+	found, err := h.Focus("nz.plu.lounge")
+	if !found || err != nil {
+		t.Fatalf("Focus = %v, %v", found, err)
+	}
+	for _, part := range []string{"address:0x5a2", "hl.dsp.focus", "action = 'set'"} {
+		if !strings.Contains(script, part) {
+			t.Errorf("script lacks %q:\n%s", part, script)
+		}
+	}
+	if found, _ := h.Focus("kodi"); found {
+		t.Fatal("Focus found a window for a class with none")
+	}
+	h.Run = func(name string, args ...string) (string, error) {
+		if args[0] == "-j" {
+			return clientsJSON, nil
+		}
+		return "Error: bad script", nil
+	}
+	if _, err := h.Focus("nz.plu.lounge"); err == nil {
+		t.Fatal("Focus hid a Lua error")
 	}
 }

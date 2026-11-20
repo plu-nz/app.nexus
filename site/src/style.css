@@ -59,6 +59,7 @@ nav a:hover, .site-footer a:hover, .install-links a:hover { color: var(--accent)
 .tile svg { width: 42%; color: var(--accent); }
 .tile .glyph { display: grid; place-items: center; width: 40%; aspect-ratio: 1; border-radius: 6px; background: #f38ba8; color: #11111b; font-size: 1.5em; }
 .tile.control b { font-size: clamp(9px, 1.5vw, 19px); color: #f5f5f5; }
+.tile .more-icon { display: grid; place-items: center; width: 40%; aspect-ratio: 1; border: 2px dashed #ffffff66; border-radius: 6px; font-size: 1.5em; }
 .tile.focused { outline: 3px solid var(--accent); outline-offset: 2px; background: #45475a; }
 
 .idea { border-block: 1px solid var(--line); background: var(--surface); padding-block: 110px; }

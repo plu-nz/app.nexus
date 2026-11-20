@@ -35,8 +35,8 @@ function Screen(props: { t: Copy }) {
         <div class="mock-tiles">
           <span class="tile focused"><svg viewBox="0 0 128 128"><rect x="22" y="28" width="84" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="9" /><path d="M56 44v22l18-11z" fill="currentColor" /></svg><span>Lounge</span></span>
           <span class="tile"><span class="glyph">V</span><span>VacuumTube</span></span>
+          <span class="tile more"><span class="more-icon">+</span><span>{props.t.mockMore}</span></span>
           <span class="tile control"><b>65%</b><span>{props.t.mockVolume}</span></span>
-          <span class="tile control"><b>TV</b><span>{props.t.mockOutput}</span></span>
           <span class="tile control"><b>80%</b><span>{props.t.mockBrightness}</span></span>
           <span class="tile control"><b>{props.t.mockSleepValue}</b><span>{props.t.mockSleep}</span></span>
         </div>

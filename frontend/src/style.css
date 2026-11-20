@@ -53,6 +53,8 @@ body {
   right: 2.4rem;
   bottom: 2rem;
   display: grid;
+  /* A column no wider than the panel, so the app strip scrolls. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.1rem;
   padding: 1.2rem 2.2rem 1.4rem;
   background: linear-gradient(
@@ -154,7 +156,28 @@ button.focused {
   align-items: center;
 }
 
+/* The apps scroll sideways on their own; the controls stay in view. */
+.app-strip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 1.2rem;
+  align-items: center;
+  /* Room for the focused tile's scale. */
+  padding: 0.6rem;
+  margin: -0.6rem;
+  overflow-x: auto;
+  /* Scrolling to a tile leaves room for its focus scale. */
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+}
+
+.app-strip::-webkit-scrollbar {
+  display: none;
+}
+
 .app {
+  flex: none;
   width: 10rem;
   height: 9rem;
   display: flex;
@@ -268,4 +291,200 @@ button.focused {
   display: flex;
   justify-content: flex-end;
   gap: 0.7rem;
+}
+
+/* The row hides while the store fills the screen. */
+.scrim.behind,
+.panel.behind {
+  display: none;
+}
+
+.store-icon {
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  border: 2px dashed color-mix(in srgb, var(--plz-text) 45%, transparent);
+  font-size: 2.6rem;
+  font-weight: 600;
+}
+
+.store-tile.focused .store-icon {
+  border-color: var(--plz-on-accent);
+}
+
+/* The store: full screen, over whatever is playing. */
+.store {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  padding: 2.4rem 4rem 3rem;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--plz-bg) 94%, transparent);
+}
+
+.store-tabs {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.store-tabs button.active:not(.focused) {
+  border-color: var(--plz-accent);
+  color: var(--plz-accent);
+}
+
+.store-note {
+  margin: 0;
+  color: var(--plz-muted);
+}
+
+.store-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.2rem;
+  padding: 0.4rem;
+}
+
+.store-card {
+  position: relative;
+  height: 8.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 0 1.4rem;
+  text-align: left;
+  white-space: normal;
+  border-radius: 1.1rem;
+}
+
+.store-card.focused {
+  transform: scale(1.04);
+}
+
+.store-card img,
+.store-card .glyph,
+.store-detail-head img,
+.store-detail-head .glyph {
+  flex: none;
+  width: 4.2rem;
+  height: 4.2rem;
+}
+
+.store .glyph {
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: var(--plz-accent);
+  color: var(--plz-on-accent);
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.store-card.focused .glyph {
+  background: var(--plz-on-accent);
+  color: var(--plz-accent);
+}
+
+.store-card-text {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.store-card-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.store-card-state {
+  color: var(--plz-muted);
+  font-size: 0.9rem;
+}
+
+.store-card-state.highlight {
+  color: var(--plz-accent);
+}
+
+.store-card.focused .store-card-state {
+  color: var(--plz-on-accent);
+}
+
+/* flatpak reports steps, not percentages, so progress is indeterminate. */
+.progress {
+  position: absolute;
+  left: 1.4rem;
+  right: 1.4rem;
+  bottom: 0.9rem;
+  height: 0.3rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--plz-text) 15%, transparent);
+}
+
+.progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  border-radius: 1rem;
+  background: var(--plz-accent);
+  animation: progress 1.4s ease-in-out infinite;
+}
+
+.store-card.focused .progress::after {
+  background: var(--plz-on-accent);
+}
+
+.progress.wide {
+  position: relative;
+  display: block;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin: 0 0 1.2rem;
+}
+
+@keyframes progress {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress::after {
+    left: 0;
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.store-detail {
+  width: min(44rem, 90vw);
+}
+
+.store-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.store-detail-head h2 {
+  margin: 0;
+}
+
+.store-detail .store-detail-state {
+  margin: 0.2rem 0 0;
+}
+
+.store-detail .store-detail-note {
+  font-size: 0.9rem;
 }

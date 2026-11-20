@@ -1,35 +1,19 @@
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 import './style.css';
-import { appsApi, audio, display, errorText, panel, timer, type TVApp } from './api';
+import { appsApi, audio, display, errorText, panel, storeApi, timer, type TVApp } from './api';
 import { locale, t } from './i18n';
-import { focusFirst, handleKey, trackFocus } from './nav';
+import { backKeys, focusFirst, handleKey, trackFocus } from './nav';
+import { attempt, say, status } from './status';
+import { Store } from './store';
 import { applyTheme, loadTheme } from './theme';
 
 loadTheme();
 trackFocus();
 
-const [status, setStatus] = createSignal('');
-let statusTimer: ReturnType<typeof setTimeout> | undefined;
-const backKeys = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack', 'XF86Back', 'Back']);
 
-/** say shows a message in the header for a few seconds. */
-function say(message: string) {
-  setStatus(message);
-  clearTimeout(statusTimer);
-  if (message) statusTimer = setTimeout(() => setStatus(''), 6000);
-}
-
-/** attempt runs a call and shows its error; it reports whether it worked. */
-async function attempt(work: () => Promise<unknown>): Promise<boolean> {
-  try {
-    await work();
-    return true;
-  } catch (err) {
-    say(errorText(err));
-    return false;
-  }
-}
+/** view is what the panel shows: the row, or the full-screen store. */
+const [view, setView] = createSignal<'panel' | 'store'>('panel');
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -109,6 +93,7 @@ function Panel() {
   let brightnessButton: HTMLButtonElement | undefined;
   let sleepButton: HTMLButtonElement | undefined;
   let closeAppsButton: HTMLButtonElement | undefined;
+  let storeButton: HTMLButtonElement | undefined;
   let cancelDialogButton: HTMLButtonElement | undefined;
   let confirmDialogButton: HTMLButtonElement | undefined;
   let outputQueue = Promise.resolve();
@@ -153,12 +138,33 @@ function Panel() {
   onCleanup(panel.onHidden(() => {
     cancelReveal();
     setShowCloseApps(false);
+    if (view() === 'store') {
+      setView('panel');
+      void panel.setExpanded(false);
+    }
   }));
+  // An install or removal changes the row.
+  onCleanup(storeApi.onAppsChanged(() => void refetchApps()));
+
+  const openStore = () => {
+    say('');
+    setShowCloseApps(false);
+    setView('store');
+    void panel.setExpanded(true);
+  };
+
+  const closeStore = () => {
+    setView('panel');
+    void panel.setExpanded(false);
+    queueMicrotask(() => storeButton?.focus());
+  };
 
   const poll = setInterval(refetchSleep, 30_000);
   onCleanup(() => clearInterval(poll));
 
   const onKey = (e: KeyboardEvent) => {
+    // The store handles its own keys.
+    if (view() !== 'panel') return;
     if (confirmSuspend() || confirmCloseApps()) {
       if (backKeys.has(e.key)) {
         e.preventDefault();
@@ -296,8 +302,8 @@ function Panel() {
 
   return (
     <>
-      <div class="scrim" classList={{ revealed: revealed() }} />
-      <main class="panel" classList={{ revealed: revealed() }}>
+      <div class="scrim" classList={{ revealed: revealed(), behind: view() !== 'panel' }} />
+      <main class="panel" classList={{ revealed: revealed(), behind: view() !== 'panel' }}>
         <header>
           <div class="brand">
             PLUNZ <b>+</b> <span>Nexus</span>
@@ -309,18 +315,21 @@ function Panel() {
         </header>
 
         <section class="tiles" aria-label={t('controls')}>
-          <Show when={showCloseApps()}>
-            <button class="app close-all-tile" data-nav ref={closeAppsButton} aria-description={t('closeAppsHint')} onClick={openCloseAppsDialog} onFocusOut={() => {
-              if (!confirmCloseApps()) setShowCloseApps(false);
-            }}>
-              <span class="close-all-icon" aria-hidden="true">×</span>
-              <span>{t('closeApps')}</span>
+          <div class="app-strip" data-nav-row>
+            <Show when={showCloseApps()}>
+              <button class="app close-all-tile" data-nav ref={closeAppsButton} aria-description={t('closeAppsHint')} onClick={openCloseAppsDialog} onFocusOut={() => {
+                if (!confirmCloseApps()) setShowCloseApps(false);
+              }}>
+                <span class="close-all-icon" aria-hidden="true">×</span>
+                <span>{t('closeApps')}</span>
+              </button>
+            </Show>
+            <For each={apps() ?? []}>{(app) => <AppTile app={app} />}</For>
+            <button class="app store-tile" data-nav ref={storeButton} aria-description={t('moreAppsHint')} onClick={openStore}>
+              <span class="store-icon" aria-hidden="true">+</span>
+              <span>{t('moreApps')}</span>
             </button>
-          </Show>
-          <For each={apps() ?? []}>{(app) => <AppTile app={app} />}</For>
-          <Show when={!apps.loading && !apps()?.length}>
-            <p class="empty">{t('empty')}</p>
-          </Show>
+          </div>
           <ControlTile
             label={t('volume')}
             value={volume() ? (volume()!.muted ? t('muted') : `${volume()!.percent}%`) : t('unavailable')}
@@ -379,6 +388,9 @@ function Panel() {
           </div>
         </Show>
       </main>
+      <Show when={view() === 'store'}>
+        <Store onClose={closeStore} />
+      </Show>
     </>
   );
 }

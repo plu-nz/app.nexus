@@ -8,8 +8,54 @@ export type TimerState = { minutes: number; remaining: number; error: string };
 export type Volume = { percent: number; muted: boolean };
 export type Output = { id: number; name: string; default: boolean };
 
+export type Category = 'video' | 'games';
+
+/** A catalog app with its install state. */
+export type StoreItem = TVApp & {
+  id: string;
+  category: Category;
+  source: 'flathub' | 'external';
+  website?: string;
+  installed: boolean;
+  /** Installed for all users: it opens, but only the system can change it. */
+  system: boolean;
+  update: boolean;
+};
+
+export type StoreAction = 'install' | 'update' | 'remove';
+
+/** One ref of an operation; flatpak reports no percentage. */
+export type StoreStep = { action: 'install' | 'update' | 'uninstall'; kind: 'app' | 'runtime'; id: string; n: number };
+
+export type StoreJob = {
+  app: string;
+  action: StoreAction;
+  state: 'queued' | 'running' | 'done' | 'failed' | 'canceled';
+  step?: StoreStep;
+  error?: string;
+};
+
+export type AppInfo = { downloadSize: number; installedSize: number; runtime: string; needsRuntime: boolean };
+
+export const storeApi = {
+  available: () => call<boolean>('StoreService.Available'),
+  items: () => call<StoreItem[]>('StoreService.Items'),
+  info: (id: string) => call<AppInfo>('StoreService.Info', id),
+  install: (id: string) => call('StoreService.Install', id),
+  update: (id: string) => call('StoreService.Update', id),
+  remove: (id: string) => call('StoreService.Remove', id),
+  cancel: (id: string) => call('StoreService.Cancel', id),
+  jobs: () => call<StoreJob[]>('StoreService.Jobs'),
+  /** onJob hears every change to an operation. */
+  onJob: (fn: (job: StoreJob) => void) => Events.On('store', (e) => fn(e.data as StoreJob)),
+  /** onAppsChanged runs after an operation changed what is installed. */
+  onAppsChanged: (fn: () => void) => Events.On('apps', fn),
+};
+
 export const panel = {
   hide: () => call('PanelService.Hide'),
+  /** setExpanded makes room for the store when Nexus is a normal window. */
+  setExpanded: (expanded: boolean) => call('PanelService.SetExpanded', expanded),
   /** onShown runs every time the panel appears. */
   onShown: (fn: () => void) => Events.On('shown', fn),
   /** onHidden conceals the panel before the window is unmapped. */

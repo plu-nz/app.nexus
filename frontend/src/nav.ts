@@ -6,7 +6,19 @@ export type Direction = 'left' | 'right' | 'up' | 'down';
 
 const selector = '[data-nav]:not(:disabled)';
 
-export function focusables(root: ParentNode = document): HTMLElement[] {
+/** The keys remotes and keyboards send for Back. */
+export const backKeys = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack', 'XF86Back', 'Back']);
+
+/**
+ * scope is where focus may go: the last [data-nav-scope] element, such as
+ * an open dialog, else the whole page.
+ */
+function scope(): ParentNode {
+  const scopes = document.querySelectorAll<HTMLElement>('[data-nav-scope]');
+  return scopes[scopes.length - 1] ?? document;
+}
+
+export function focusables(root: ParentNode = scope()): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(selector)].filter((el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
@@ -24,18 +36,46 @@ function gap(a1: number, a2: number, b1: number, b2: number) {
   return Math.max(0, b1 - a2, a1 - b2);
 }
 
+/**
+ * clipped reports whether an element is scrolled out of its [data-nav-row],
+ * a strip that scrolls sideways on its own.
+ */
+function clipped(el: HTMLElement): boolean {
+  const row = el.closest<HTMLElement>('[data-nav-row]');
+  if (!row) return false;
+  const r = row.getBoundingClientRect();
+  const b = el.getBoundingClientRect();
+  return b.right <= r.left + 1 || b.left >= r.right - 1;
+}
+
+/** show focuses an element and scrolls its row to it. */
+function show(el: HTMLElement) {
+  el.focus();
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
 export function move(dir: Direction) {
   const all = focusables();
   const current = document.activeElement as HTMLElement | null;
   if (!current || !all.includes(current)) {
-    all[0]?.focus();
+    if (all[0]) show(all[0]);
     return;
+  }
+  // Within a strip, Left and Right walk it in order, scrolling as they go.
+  const row = current.closest<HTMLElement>('[data-nav-row]');
+  if (row && (dir === 'left' || dir === 'right')) {
+    const members = all.filter((el) => row.contains(el));
+    const next = members[members.indexOf(current) + (dir === 'right' ? 1 : -1)];
+    if (next) {
+      show(next);
+      return;
+    }
   }
   const a = current.getBoundingClientRect();
   let best: HTMLElement | undefined;
   let bestScore = Infinity;
   for (const el of all) {
-    if (el === current) continue;
+    if (el === current || clipped(el)) continue;
     const b = el.getBoundingClientRect();
     let along: number;
     let across: number;
@@ -57,7 +97,7 @@ export function move(dir: Direction) {
       best = el;
     }
   }
-  best?.focus();
+  if (best) show(best);
 }
 
 /**

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nexus
+Comment=TV apps and controls
+Exec=nexus-toggle
+Terminal=false
+Categories=AudioVideo;Utility;
+StartupWMClass=nz.plu.nexus

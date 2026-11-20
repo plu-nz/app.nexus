@@ -1,0 +1,229 @@
+/* Nexus's own palette. theme.ts replaces these with the GTK theme's colors. */
+:root {
+  --plz-bg: #11111b;
+  --plz-surface: #181825;
+  --plz-raised: #313244;
+  --plz-line: #585b70;
+  --plz-text: #cdd6f4;
+  --plz-muted: #a6adc8;
+  --plz-accent: #fab387;
+  --plz-on-accent: #11111b;
+  --plz-danger: #f38ba8;
+  color-scheme: dark;
+  /* Sizes are in rem, and 1rem is 18px on a 1920px-wide screen, so the
+     panel keeps its proportions from 720p to 4K. */
+  font-size: calc(100vw / 106.67);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  /* The window is a transparent overlay; only the panel is painted. */
+  background: transparent;
+  color: var(--plz-text);
+  font: 1rem/1.3 system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* Dims whatever is behind the panel. Black is fine here: it only darkens
+   the desktop or video underneath. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.15) 60%);
+}
+
+.panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 1.2rem;
+  padding: 1.3rem 3rem 1.6rem;
+  background: linear-gradient(180deg, var(--plz-surface), var(--plz-bg));
+  border-top: 1px solid color-mix(in srgb, var(--plz-line) 70%, var(--plz-bg));
+  border-radius: 1.6rem 1.6rem 0 0;
+  box-shadow: 0 -0.5rem 2rem rgb(0 0 0 / 0.35);
+}
+
+header,
+footer,
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+header {
+  gap: 1.4rem;
+  color: var(--plz-muted);
+}
+
+.brand {
+  font-weight: 800;
+  color: var(--plz-text);
+  white-space: nowrap;
+}
+
+.brand b {
+  color: var(--plz-accent);
+}
+
+.brand span {
+  margin-left: 0.6rem;
+  font-weight: 500;
+  color: var(--plz-muted);
+}
+
+.status {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clock {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--plz-text);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  height: 3rem;
+  padding: 0 1.1rem;
+  color: var(--plz-text);
+  background: var(--plz-raised);
+  border: 1px solid var(--plz-line);
+  border-radius: 0.8rem;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease-out,
+    background-color 0.12s ease-out;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.square {
+  width: 3rem;
+  padding: 0;
+  font-size: 1.4rem;
+}
+
+button.selected {
+  border-color: var(--plz-accent);
+  box-shadow: inset 0 0 0 1px var(--plz-accent);
+  color: var(--plz-accent);
+}
+
+button.armed {
+  border-color: var(--plz-danger);
+  color: var(--plz-danger);
+}
+
+button:focus {
+  outline: none;
+}
+
+/* Focus must read from the couch: fill with the accent. */
+button.focused {
+  background: var(--plz-accent);
+  border-color: var(--plz-accent);
+  color: var(--plz-on-accent);
+  transform: scale(1.06);
+}
+
+.apps {
+  display: flex;
+  gap: 1.2rem;
+  min-height: 9rem;
+  align-items: center;
+}
+
+.app {
+  width: 10rem;
+  height: 9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  border-radius: 1.1rem;
+}
+
+.app img,
+.app .glyph {
+  width: 4.2rem;
+  height: 4.2rem;
+}
+
+.app .glyph {
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: var(--plz-accent);
+  color: var(--plz-on-accent);
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.app.focused .glyph {
+  background: var(--plz-on-accent);
+  color: var(--plz-accent);
+}
+
+.empty {
+  color: var(--plz-muted);
+}
+
+.controls {
+  display: flex;
+  gap: 2.6rem;
+  flex-wrap: wrap;
+}
+
+.group h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--plz-muted);
+  white-space: nowrap;
+}
+
+.group .note {
+  font-weight: 500;
+  color: var(--plz-accent);
+}
+
+.group .note.error {
+  color: var(--plz-danger);
+}
+
+.value {
+  min-width: 5.2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+button.output {
+  max-width: 17rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+footer .spacer {
+  flex: 1;
+}

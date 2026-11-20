@@ -1,0 +1,123 @@
+package main
+
+import (
+	"errors"
+	"os/exec"
+	"sync"
+
+	"github.com/plu-nz/app.nexus/internal/apps"
+	"github.com/plu-nz/app.nexus/internal/audio"
+	"github.com/plu-nz/app.nexus/internal/brightness"
+	"github.com/plu-nz/app.nexus/internal/gtktheme"
+	"github.com/plu-nz/app.nexus/internal/sleeptimer"
+)
+
+// The services are the methods the UI calls by name
+// (main.<Service>.<Method>). They are thin; the logic lives in internal/.
+
+// PanelService shows and hides the panel.
+type PanelService struct{ panel *panel }
+
+// Hide hides the panel. Nexus keeps running, so the sleep timer survives.
+func (s *PanelService) Hide() { s.panel.hide() }
+
+// AppsService lists and opens the catalog apps.
+type AppsService struct {
+	launcher *apps.Launcher
+	panel    *panel
+}
+
+// List returns the installed catalog apps.
+func (s *AppsService) List() []apps.App { return s.launcher.Available() }
+
+// Launch opens a catalog app and hides the panel so the app is in front.
+func (s *AppsService) Launch(command string) error {
+	if err := s.launcher.Launch(command); err != nil {
+		return err
+	}
+	s.panel.hide()
+	return nil
+}
+
+// TimerService runs the sleep timer.
+type TimerService struct{ timer *sleeptimer.Timer }
+
+// Start suspends the machine after the given minutes.
+func (s *TimerService) Start(minutes int) error {
+	if minutes < 1 || minutes > 240 {
+		return errors.New("timer must be between 1 and 240 minutes")
+	}
+	s.timer.Start(minutes)
+	return nil
+}
+
+// Cancel stops the sleep timer.
+func (s *TimerService) Cancel() { s.timer.Cancel() }
+
+// State reports the sleep timer.
+func (s *TimerService) State() sleeptimer.State { return s.timer.State() }
+
+// DisplayService controls the display brightness.
+type DisplayService struct{ control *brightness.Control }
+
+// Brightness returns the brightness in percent.
+func (s *DisplayService) Brightness() (int, error) { return s.control.Get() }
+
+// SetBrightness sets the brightness in percent.
+func (s *DisplayService) SetBrightness(percent int) error { return s.control.Set(percent) }
+
+// AudioService controls the default audio output.
+type AudioService struct{ mixer *audio.Mixer }
+
+// Volume returns the default output's volume.
+func (s *AudioService) Volume() (audio.Volume, error) { return s.mixer.Volume() }
+
+// SetVolume sets the default output's volume in percent.
+func (s *AudioService) SetVolume(percent int) error { return s.mixer.SetVolume(percent) }
+
+// ToggleMute mutes or unmutes the default output.
+func (s *AudioService) ToggleMute() error { return s.mixer.ToggleMute() }
+
+// Outputs lists the audio outputs.
+func (s *AudioService) Outputs() ([]audio.Output, error) { return s.mixer.Outputs() }
+
+// SetOutput makes an output the default.
+func (s *AudioService) SetOutput(id int) error { return s.mixer.SetOutput(id) }
+
+// PowerService suspends, restarts, or powers off the machine.
+type PowerService struct{ panel *panel }
+
+func (s *PowerService) run(action string) error {
+	s.panel.hide()
+	return exec.Command("systemctl", action).Run()
+}
+
+// Suspend puts the machine to sleep.
+func (s *PowerService) Suspend() error { return s.run("suspend") }
+
+// Restart reboots the machine.
+func (s *PowerService) Restart() error { return s.run("reboot") }
+
+// PowerOff shuts the machine down.
+func (s *PowerService) PowerOff() error { return s.run("poweroff") }
+
+// ThemeService reports the desktop's GTK theme colors.
+type ThemeService struct {
+	mu    sync.Mutex
+	theme gtktheme.Theme
+}
+
+// GTK returns the active GTK theme's palette.
+func (s *ThemeService) GTK() gtktheme.Theme {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.theme
+}
+
+func (s *ThemeService) set(t gtktheme.Theme) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := s.theme != t
+	s.theme = t
+	return changed
+}

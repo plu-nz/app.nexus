@@ -74,10 +74,9 @@ func main() {
 		Services: []application.Service{
 			application.NewService(&PanelService{panel: p}),
 			application.NewService(&AppsService{launcher: apps.New(), panel: p}),
-			application.NewService(&TimerService{timer: timer}),
+			application.NewService(&TimerService{timer: timer, panel: p}),
 			application.NewService(&DisplayService{control: brightness.New()}),
 			application.NewService(&AudioService{mixer: audio.New()}),
-			application.NewService(&PowerService{panel: p}),
 			application.NewService(themes),
 		},
 	})

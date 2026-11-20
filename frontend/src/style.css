@@ -59,9 +59,7 @@ body {
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.4);
 }
 
-header,
-footer,
-.row {
+header {
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -124,23 +122,6 @@ button:disabled {
   cursor: default;
 }
 
-button.square {
-  width: 3rem;
-  padding: 0;
-  font-size: 1.4rem;
-}
-
-button.selected {
-  border-color: var(--plz-accent);
-  box-shadow: inset 0 0 0 1px var(--plz-accent);
-  color: var(--plz-accent);
-}
-
-button.armed {
-  border-color: var(--plz-danger);
-  color: var(--plz-danger);
-}
-
 button:focus {
   outline: none;
 }
@@ -153,7 +134,7 @@ button.focused {
   transform: scale(1.06);
 }
 
-.apps {
+.tiles {
   display: flex;
   gap: 1.2rem;
   min-height: 9rem;
@@ -192,45 +173,62 @@ button.focused {
   color: var(--plz-accent);
 }
 
+.control-tile {
+  gap: 0.3rem;
+}
+
+.tile-value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-hint {
+  color: var(--plz-muted);
+  font-size: 0.8rem;
+}
+
+.control-tile.focused .tile-hint {
+  color: var(--plz-on-accent);
+}
+
 .empty {
   color: var(--plz-muted);
 }
 
-.controls {
-  display: flex;
-  gap: 2.6rem;
-  flex-wrap: wrap;
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.55);
 }
 
-.group h2 {
+.dialog {
+  width: min(32rem, 90vw);
+  padding: 1.5rem;
+  border: 1px solid var(--plz-line);
+  border-radius: 1rem;
+  background: var(--plz-surface);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.4);
+}
+
+.dialog h2 {
   margin: 0 0 0.6rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1.3rem;
+}
+
+.dialog p {
+  margin: 0 0 1.5rem;
   color: var(--plz-muted);
-  white-space: nowrap;
 }
 
-.group .note {
-  font-weight: 500;
-  color: var(--plz-accent);
-}
-
-.group .note.error {
-  color: var(--plz-danger);
-}
-
-.value {
-  min-width: 5.2rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-button.output {
-  max-width: 17rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-footer .spacer {
-  flex: 1;
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
 }

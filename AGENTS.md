@@ -15,7 +15,7 @@ The app is one Go binary built with Wails 3. The window is GTK 4 with WebKitGTK 
 - `internal/layershell`: gtk4-layer-shell setup, a full-screen overlay layer with exclusive keyboard.
 - `internal/gtktheme`: reads the active GTK theme's named colors through GTK and reports theme changes; the UI gets them as `theme` events.
 - `frontend/src`:
-  - `main.tsx`: the panel;
+  - `main.tsx`: the single-row panel and suspend confirmation dialog;
   - `api.ts`: the typed service calls;
   - `nav.ts`: spatial navigation for remotes (arrow keys move to the nearest `[data-nav]` element) and the `.focused` class;
   - `theme.ts`: maps the GTK palette onto the `--plz-*` tokens;

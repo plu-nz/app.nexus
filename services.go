@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"log"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -49,7 +48,10 @@ func (s *AppsService) Launch(command string) error {
 const panelUnmapDelay = 150 * time.Millisecond
 
 // TimerService runs the sleep timer.
-type TimerService struct{ timer *sleeptimer.Timer }
+type TimerService struct {
+	timer *sleeptimer.Timer
+	panel *panel
+}
 
 // Start suspends the machine after the given minutes.
 func (s *TimerService) Start(minutes int) error {
@@ -65,6 +67,12 @@ func (s *TimerService) Cancel() { s.timer.Cancel() }
 
 // State reports the sleep timer.
 func (s *TimerService) State() sleeptimer.State { return s.timer.State() }
+
+// SuspendNow cancels the countdown and suspends immediately.
+func (s *TimerService) SuspendNow() error {
+	s.panel.hide()
+	return s.timer.SuspendNow()
+}
 
 // DisplayService controls the display brightness.
 type DisplayService struct{ control *brightness.Control }
@@ -92,23 +100,6 @@ func (s *AudioService) Outputs() ([]audio.Output, error) { return s.mixer.Output
 
 // SetOutput makes an output the default.
 func (s *AudioService) SetOutput(id int) error { return s.mixer.SetOutput(id) }
-
-// PowerService suspends, restarts, or powers off the machine.
-type PowerService struct{ panel *panel }
-
-func (s *PowerService) run(action string) error {
-	s.panel.hide()
-	return exec.Command("systemctl", action).Run()
-}
-
-// Suspend puts the machine to sleep.
-func (s *PowerService) Suspend() error { return s.run("suspend") }
-
-// Restart reboots the machine.
-func (s *PowerService) Restart() error { return s.run("reboot") }
-
-// PowerOff shuts the machine down.
-func (s *PowerService) PowerOff() error { return s.run("poweroff") }
 
 // ThemeService reports the desktop's GTK theme colors.
 type ThemeService struct {

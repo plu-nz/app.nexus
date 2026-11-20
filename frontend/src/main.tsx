@@ -1,10 +1,10 @@
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 import './style.css';
-import { appsApi, audio, display, errorText, panel, power, timer, type TVApp } from './api';
-import { locale, localeNames, locales, setLocale, t } from './i18n';
+import { appsApi, audio, display, errorText, panel, timer, type TVApp } from './api';
+import { locale, t } from './i18n';
 import { focusFirst, handleKey, trackFocus } from './nav';
-import { applyTheme, gtkTheme, loadTheme, setThemeChoice, themeChoice } from './theme';
+import { applyTheme, loadTheme } from './theme';
 
 loadTheme();
 trackFocus();
@@ -57,35 +57,60 @@ function AppTile(props: { app: TVApp }) {
   );
 }
 
-/** Stepper is a − value + control; the remote cannot drag a slider. */
-function Stepper(props: { value: string; down: string; up: string; disabled: boolean; onStep: (delta: number) => void }) {
+function ControlTile(props: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  description?: string;
+  onClick: () => void;
+  ref?: (element: HTMLButtonElement) => void;
+}) {
   return (
-    <>
-      <button class="square" data-nav aria-label={props.down} disabled={props.disabled} onClick={() => props.onStep(-1)}>
-        −
-      </button>
-      <span class="value">{props.value}</span>
-      <button class="square" data-nav aria-label={props.up} disabled={props.disabled} onClick={() => props.onStep(1)}>
-        +
-      </button>
-    </>
+    <button
+      class="app control-tile"
+      data-nav
+      ref={props.ref}
+      disabled={props.disabled}
+      aria-label={`${props.label}: ${props.value}`}
+      aria-description={props.description}
+      onClick={props.onClick}
+    >
+      <span class="tile-value">{props.value}</span>
+      <span>{props.label}</span>
+      <span class="tile-hint">↑ ↓</span>
+    </button>
   );
 }
 
-const timerChoices = [0, 15, 30, 60, 120];
+function formatMinutes(minutes: number): string {
+  if (!minutes) return t('off');
+  if (minutes < 60) return t('minutes', { n: minutes });
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${t('hours', { n: hours })} ${t('minutes', { n: rest })}` : t('hours', { n: hours });
+}
 
 function Panel() {
   const [apps, { refetch: refetchApps }] = createResource(() => appsApi.list());
   const [volume, { refetch: refetchVolume, mutate: setVolume }] = createResource(() => orNull(audio.volume()));
-  const [outputs, { refetch: refetchOutputs }] = createResource(() => orNull(audio.outputs()));
+  const [outputs, { refetch: refetchOutputs, mutate: setOutputs }] = createResource(() => orNull(audio.outputs()));
   const [brightness, { refetch: refetchBrightness, mutate: setBrightness }] = createResource(() => orNull(display.brightness()));
-  const [sleep, { refetch: refetchSleep }] = createResource(() => timer.state());
-  const [armed, setArmed] = createSignal<'restart' | 'powerOff'>();
-  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  const [sleep, { refetch: refetchSleep, mutate: setSleep }] = createResource(() => timer.state());
+  const [confirmSuspend, setConfirmSuspend] = createSignal(false);
 
   const focusApps = () => queueMicrotask(() => focusFirst('.app'));
   let panelEl: HTMLElement | undefined;
   let scrimEl: HTMLDivElement | undefined;
+  let volumeButton: HTMLButtonElement | undefined;
+  let outputButton: HTMLButtonElement | undefined;
+  let brightnessButton: HTMLButtonElement | undefined;
+  let sleepButton: HTMLButtonElement | undefined;
+  let cancelSuspendButton: HTMLButtonElement | undefined;
+  let suspendButton: HTMLButtonElement | undefined;
+  let outputQueue = Promise.resolve();
+  let outputRevision = 0;
+  let sleepQueue = Promise.resolve();
+  let sleepRevision = 0;
 
   /** enter slides the panel up and fades the scrim in each time it appears. */
   const enter = () => {
@@ -108,7 +133,7 @@ function Panel() {
     panel.onShown(() => {
       enter();
       say('');
-      setArmed(undefined);
+      setConfirmSuspend(false);
       refetchVolume();
       refetchOutputs();
       refetchBrightness();
@@ -121,6 +146,31 @@ function Panel() {
   onCleanup(() => clearInterval(poll));
 
   const onKey = (e: KeyboardEvent) => {
+    if (confirmSuspend()) {
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        e.preventDefault();
+        closeSuspendDialog();
+      } else if (e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        if (e.key === 'ArrowLeft') cancelSuspendButton?.focus();
+        if (e.key === 'ArrowRight') suspendButton?.focus();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        (document.activeElement === cancelSuspendButton ? suspendButton : cancelSuspendButton)?.focus();
+      }
+      return;
+    }
+    const focused = document.activeElement;
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+        (focused === volumeButton || focused === outputButton || focused === brightnessButton || focused === sleepButton)) {
+      e.preventDefault();
+      const dir = e.key === 'ArrowUp' ? 1 : -1;
+      if (focused === volumeButton) void stepVolume(dir);
+      if (focused === outputButton) void stepOutput(dir);
+      if (focused === brightnessButton) void stepBrightness(dir);
+      if (focused === sleepButton) void stepSleep(dir);
+      return;
+    }
     if (handleKey(e)) return;
     if (e.key === 'Escape' || e.key === 'Backspace') {
       e.preventDefault();
@@ -144,13 +194,20 @@ function Panel() {
   };
 
   const currentOutput = () => outputs()?.find((o) => o.default);
-  const nextOutput = async () => {
+  const stepOutput = (dir: number) => {
     const list = outputs();
-    if (!list?.length) return;
+    if (!list || list.length < 2) return;
     const i = list.findIndex((o) => o.default);
-    await attempt(() => audio.setOutput(list[(i + 1) % list.length].id));
-    refetchOutputs();
-    refetchVolume();
+    const next = list[(i + dir + list.length) % list.length];
+    setOutputs(list.map((o) => ({ ...o, default: o.id === next.id })));
+    const revision = ++outputRevision;
+    outputQueue = outputQueue.then(async () => {
+      const ok = await attempt(() => audio.setOutput(next.id));
+      if (revision === outputRevision) {
+        if (!ok) refetchOutputs();
+        refetchVolume();
+      }
+    });
   };
 
   const stepBrightness = async (dir: number) => {
@@ -161,39 +218,39 @@ function Panel() {
     if (!(await attempt(() => display.setBrightness(percent)))) refetchBrightness();
   };
 
-  const chooseTimer = async (minutes: number) => {
-    await attempt(() => (minutes ? timer.start(minutes) : timer.cancel()));
+  const stepSleep = (dir: number) => {
+    const current = sleep();
+    if (!current) return;
+    const minutes = clamp(current.remaining + dir * 15, 0, 240);
+    if (minutes === current.remaining) return;
+    setSleep({ minutes, remaining: minutes, error: '' });
+    const revision = ++sleepRevision;
+    sleepQueue = sleepQueue.then(async () => {
+      const ok = await attempt(() => (minutes ? timer.start(minutes) : timer.cancel()));
+      if (!ok && revision === sleepRevision) refetchSleep();
+    });
+  };
+
+  const openSuspendDialog = () => {
+    setConfirmSuspend(true);
+    queueMicrotask(() => cancelSuspendButton?.focus());
+  };
+
+  const closeSuspendDialog = () => {
+    setConfirmSuspend(false);
+    queueMicrotask(() => sleepButton?.focus());
+  };
+
+  const suspendNow = async () => {
+    setConfirmSuspend(false);
+    await sleepQueue;
+    await attempt(timer.suspendNow);
     refetchSleep();
-  };
-
-  const sleepNote = () => {
-    const s = sleep();
-    if (s?.error) return t('suspendFailed', { error: s.error });
-    if (s?.minutes) return t('sleepsIn', { n: s.remaining });
-    return '';
-  };
-
-  /** confirm runs a power action on its second press within a few seconds. */
-  const confirm = (action: 'restart' | 'powerOff') => {
-    clearTimeout(armTimer);
-    if (armed() !== action) {
-      setArmed(action);
-      armTimer = setTimeout(() => setArmed(undefined), 4000);
-      return;
-    }
-    setArmed(undefined);
-    void attempt(action === 'restart' ? power.restart : power.powerOff);
-  };
-
-  const themeLabel = () => {
-    if (themeChoice() === 'nexus') return 'Nexus';
-    const g = gtkTheme();
-    return g?.name ? t('systemNamed', { name: g.name }) : t('system');
   };
 
   return (
     <>
-      <div class="scrim" ref={scrimEl} onClick={() => void panel.hide()} />
+      <div class="scrim" ref={scrimEl} />
       <main class="panel" ref={panelEl}>
         <header>
           <div class="brand">
@@ -203,100 +260,57 @@ function Panel() {
             {status()}
           </p>
           <Clock />
-          <button class="square close" data-nav aria-label={t('close')} onClick={() => void panel.hide()}>
-            ×
-          </button>
         </header>
 
-        <section class="apps" aria-label={t('apps')}>
+        <section class="tiles" aria-label={t('controls')}>
           <For each={apps() ?? []}>{(app) => <AppTile app={app} />}</For>
           <Show when={!apps.loading && !apps()?.length}>
             <p class="empty">{t('empty')}</p>
           </Show>
+          <ControlTile
+            label={t('volume')}
+            value={volume() ? (volume()!.muted ? t('muted') : `${volume()!.percent}%`) : t('unavailable')}
+            disabled={!volume()}
+            description={t('volumeHint')}
+            ref={(el) => (volumeButton = el)}
+            onClick={toggleMute}
+          />
+          <ControlTile
+            label={t('output')}
+            value={currentOutput()?.name ?? t('unavailable')}
+            disabled={(outputs()?.length ?? 0) < 2}
+            description={t('outputHint')}
+            ref={(el) => (outputButton = el)}
+            onClick={() => void stepOutput(1)}
+          />
+          <ControlTile
+            label={t('brightness')}
+            value={brightness() != null ? `${brightness()}%` : t('unavailable')}
+            disabled={brightness() == null}
+            description={t('brightnessHint')}
+            ref={(el) => (brightnessButton = el)}
+            onClick={() => void stepBrightness(1)}
+          />
+          <ControlTile
+            label={t('sleep')}
+            value={sleep()?.error ? t('failed') : formatMinutes(sleep()?.remaining ?? 0)}
+            description={sleep()?.error ? t('suspendFailed', { error: sleep()!.error }) : t('sleepHint')}
+            ref={(el) => (sleepButton = el)}
+            onClick={openSuspendDialog}
+          />
         </section>
-
-        <section class="controls">
-          <div class="group">
-            <h2>{t('volume')}</h2>
-            <div class="row">
-              <Stepper
-                value={volume() ? (volume()!.muted ? t('muted') : `${volume()!.percent}%`) : t('unavailable')}
-                down={t('volumeDown')}
-                up={t('volumeUp')}
-                disabled={!volume()}
-                onStep={stepVolume}
-              />
-              <button data-nav classList={{ selected: volume()?.muted }} disabled={!volume()} onClick={toggleMute}>
-                {volume()?.muted ? t('unmute') : t('mute')}
-              </button>
+        <Show when={confirmSuspend()}>
+          <div class="dialog-backdrop">
+            <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="suspend-title" aria-describedby="suspend-description">
+              <h2 id="suspend-title">{t('suspendNow')}</h2>
+              <p id="suspend-description">{t('suspendConfirm')}</p>
+              <div class="dialog-actions">
+                <button data-nav ref={cancelSuspendButton} onClick={closeSuspendDialog}>{t('cancel')}</button>
+                <button data-nav ref={suspendButton} onClick={() => void suspendNow()}>{t('suspend')}</button>
+              </div>
             </div>
           </div>
-
-          <div class="group">
-            <h2>{t('output')}</h2>
-            <div class="row">
-              <button class="output" data-nav disabled={(outputs()?.length ?? 0) < 2} onClick={nextOutput}>
-                {currentOutput()?.name ?? t('unavailable')}
-              </button>
-            </div>
-          </div>
-
-          <div class="group">
-            <h2>{t('brightness')}</h2>
-            <div class="row">
-              <Stepper
-                value={brightness() != null ? `${brightness()}%` : t('unavailable')}
-                down={t('brightnessDown')}
-                up={t('brightnessUp')}
-                disabled={brightness() == null}
-                onStep={stepBrightness}
-              />
-            </div>
-          </div>
-
-          <div class="group">
-            <h2>
-              {t('sleep')}
-              <Show when={sleepNote()}>
-                <span class="note" classList={{ error: Boolean(sleep()?.error) }}>
-                  {' · '}
-                  {sleepNote()}
-                </span>
-              </Show>
-            </h2>
-            <div class="row">
-              <For each={timerChoices}>
-                {(m) => (
-                  <button class="chip" data-nav classList={{ selected: (sleep()?.minutes ?? 0) === m }} onClick={() => chooseTimer(m)}>
-                    {m === 0 ? t('off') : m < 60 ? t('minutes', { n: m }) : t('hours', { n: m / 60 })}
-                  </button>
-                )}
-              </For>
-            </div>
-          </div>
-        </section>
-
-        <footer>
-          <button data-nav onClick={() => setLocale(locales[(locales.indexOf(locale()) + 1) % locales.length])}>
-            {t('language')}: {localeNames[locale()]}
-          </button>
-          <button data-nav onClick={() => setThemeChoice(themeChoice() === 'gtk' ? 'nexus' : 'gtk')}>
-            {t('theme')}: {themeLabel()}
-          </button>
-          <button data-nav onClick={() => refetchApps()}>
-            {t('refresh')}
-          </button>
-          <span class="spacer" />
-          <button data-nav onClick={() => void attempt(power.suspend)}>
-            {t('suspend')}
-          </button>
-          <button data-nav classList={{ armed: armed() === 'restart' }} onClick={() => confirm('restart')}>
-            {armed() === 'restart' ? t('confirm') : t('restart')}
-          </button>
-          <button data-nav classList={{ armed: armed() === 'powerOff' }} onClick={() => confirm('powerOff')}>
-            {armed() === 'powerOff' ? t('confirm') : t('powerOff')}
-          </button>
-        </footer>
+        </Show>
       </main>
     </>
   );

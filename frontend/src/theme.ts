@@ -17,33 +17,12 @@ export type GtkTheme = {
   warning: string;
 };
 
-/** ThemeChoice is 'gtk' to follow the desktop or 'nexus' for the built-in colors. */
-export type ThemeChoice = 'gtk' | 'nexus';
-
-function savedChoice(): ThemeChoice {
-  try {
-    return localStorage.getItem('nexus_theme') === 'nexus' ? 'nexus' : 'gtk';
-  } catch {
-    return 'gtk';
-  }
-}
-
-const [themeChoice, setChoice] = createSignal<ThemeChoice>(savedChoice());
 const [gtkTheme, setGtkTheme] = createSignal<GtkTheme>();
-export { themeChoice, gtkTheme };
-
-export function setThemeChoice(choice: ThemeChoice) {
-  try {
-    localStorage.setItem('nexus_theme', choice);
-  } catch {
-    // The choice then lasts until Nexus restarts.
-  }
-  setChoice(choice);
-}
+export { gtkTheme };
 
 /** followsGtk reports whether the panel takes its colors from the GTK theme. */
 export function followsGtk(): boolean {
-  return themeChoice() === 'gtk' && Boolean(gtkTheme()?.background);
+  return Boolean(gtkTheme()?.background);
 }
 
 const mix = (color: string, percent: number, base: string) => `color-mix(in srgb, ${color} ${percent}%, ${base})`;

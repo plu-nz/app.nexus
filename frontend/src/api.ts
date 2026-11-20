@@ -23,6 +23,7 @@ export const timer = {
   start: (minutes: number) => call('TimerService.Start', minutes),
   cancel: () => call('TimerService.Cancel'),
   state: () => call<TimerState>('TimerService.State'),
+  suspendNow: () => call('TimerService.SuspendNow'),
 };
 
 export const display = {
@@ -36,12 +37,6 @@ export const audio = {
   toggleMute: () => call('AudioService.ToggleMute'),
   outputs: () => call<Output[]>('AudioService.Outputs'),
   setOutput: (id: number) => call('AudioService.SetOutput', id),
-};
-
-export const power = {
-  suspend: () => call('PowerService.Suspend'),
-  restart: () => call('PowerService.Restart'),
-  powerOff: () => call('PowerService.PowerOff'),
 };
 
 /** errorText turns a failed call into a message for the status line. */

@@ -69,3 +69,22 @@ func TestFailedSuspendIsReported(t *testing.T) {
 	}
 	timer.Cancel()
 }
+
+func TestSuspendNowCancelsCountdownAndReportsFailure(t *testing.T) {
+	calls := 0
+	timer := fast(func() error {
+		calls++
+		return errors.New("not allowed")
+	})
+	timer.Start(3)
+	if err := timer.SuspendNow(); err == nil || err.Error() != "not allowed" {
+		t.Fatalf("SuspendNow error = %v, want not allowed", err)
+	}
+	time.Sleep(80 * time.Millisecond)
+	if calls != 1 {
+		t.Fatalf("suspend calls = %d, want 1", calls)
+	}
+	if s := timer.State(); s.Minutes != 0 || s.Error != "not allowed" {
+		t.Fatalf("State = %+v, want canceled timer and error", s)
+	}
+}

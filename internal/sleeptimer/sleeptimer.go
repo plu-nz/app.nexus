@@ -70,6 +70,18 @@ func (t *Timer) Cancel() {
 	t.stop()
 }
 
+// SuspendNow stops any countdown and calls the suspend action immediately.
+func (t *Timer) SuspendNow() error {
+	t.Cancel()
+	err := t.Suspend()
+	t.mu.Lock()
+	if err != nil {
+		t.err = err.Error()
+	}
+	t.mu.Unlock()
+	return err
+}
+
 func (t *Timer) stop() {
 	if t.timer != nil {
 		t.timer.Stop()

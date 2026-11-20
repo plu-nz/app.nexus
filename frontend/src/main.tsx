@@ -420,6 +420,21 @@ function Panel() {
             ref={(el) => (volumeButton = el)}
             onClick={toggleMute}
           />
+          <ControlTile
+            label={t('sleep')}
+            value={sleep()?.error ? t('failed') : formatMinutes(sleep()?.remaining ?? 0)}
+            description={sleep()?.error ? t('suspendFailed', { error: sleep()!.error }) : t('sleepHint')}
+            ref={(el) => (sleepButton = el)}
+            onClick={openSuspendDialog}
+          />
+          <ControlTile
+            label={t('brightness')}
+            value={brightness() != null ? `${brightness()}%` : t('unavailable')}
+            disabled={brightness() == null}
+            description={t('brightnessHint')}
+            ref={(el) => (brightnessButton = el)}
+            onClick={() => void stepBrightness(1)}
+          />
           <Show when={(outputs()?.length ?? 0) > 1}>
             <ControlTile
               label={t('output')}
@@ -429,21 +444,6 @@ function Panel() {
               onClick={() => void stepOutput(1)}
             />
           </Show>
-          <ControlTile
-            label={t('brightness')}
-            value={brightness() != null ? `${brightness()}%` : t('unavailable')}
-            disabled={brightness() == null}
-            description={t('brightnessHint')}
-            ref={(el) => (brightnessButton = el)}
-            onClick={() => void stepBrightness(1)}
-          />
-          <ControlTile
-            label={t('sleep')}
-            value={sleep()?.error ? t('failed') : formatMinutes(sleep()?.remaining ?? 0)}
-            description={sleep()?.error ? t('suspendFailed', { error: sleep()!.error }) : t('sleepHint')}
-            ref={(el) => (sleepButton = el)}
-            onClick={openSuspendDialog}
-          />
         </section>
         <Show when={confirmSuspend()}>
           <div class="dialog-backdrop">

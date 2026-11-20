@@ -8,7 +8,7 @@ Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from 
 - a More apps tile that opens a store to install, update, and remove those apps from Flathub;
 - a hidden Close apps button to the left of the apps, revealed with Left from the leftmost app; its confirmation closes every open window of the catalog apps;
 - on an app that is open, Down reveals a Close button over its tile; Enter closes every window of that app only;
-- a single horizontal row for apps, volume, audio output, brightness, and the sleep timer; the apps scroll on their own, so the controls stay in view;
+- a single horizontal row for apps, volume, the sleep timer, brightness, and audio output; the apps scroll on their own, so the controls stay in view;
 - Up/Down on volume adjusts by 5%; Enter mutes or unmutes;
 - when at least two audio outputs are available, Up/Down on output switches between them and Enter selects the next one;
 - Up/Down on brightness adjusts by 10%; Enter increases it by 10%;

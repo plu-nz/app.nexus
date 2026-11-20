@@ -17,7 +17,7 @@ Everything works with the arrow keys, Enter, and Back (Escape or Backspace), so 
 ./scripts/install.sh
 ```
 
-This builds Nexus and installs `nexus`, the `nexus-toggle` command, and a desktop entry for the current user. Bind `nexus-toggle` to a key or a remote button; on this Omarchy setup it is Super+Shift+N. The first press starts Nexus, later presses show and hide the panel.
+This builds Nexus and installs `nexus`, the `nexus-toggle` command, and a desktop entry for the current user. Bind `nexus-toggle` to a key or a remote button; on this Omarchy setup it is the air mouse's Power button, which udev remaps to F19. The first press starts Nexus, later presses show and hide the panel.
 
 Nexus keeps running while hidden, so the sleep timer survives. To load a new version, stop the running one with `systemctl --user stop plunz-nexus`.
 

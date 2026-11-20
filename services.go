@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"sync"
@@ -9,8 +10,10 @@ import (
 	"github.com/plu-nz/app.nexus/internal/apps"
 	"github.com/plu-nz/app.nexus/internal/audio"
 	"github.com/plu-nz/app.nexus/internal/brightness"
+	"github.com/plu-nz/app.nexus/internal/flatpak"
 	"github.com/plu-nz/app.nexus/internal/gtktheme"
 	"github.com/plu-nz/app.nexus/internal/sleeptimer"
+	"github.com/plu-nz/app.nexus/internal/store"
 )
 
 // The services are the methods the UI calls by name
@@ -21,6 +24,11 @@ type PanelService struct{ panel *panel }
 
 // Hide hides the panel. Nexus keeps running, so the sleep timer survives.
 func (s *PanelService) Hide() { s.panel.hide() }
+
+// SetExpanded makes room for the full-screen store. The overlay already
+// covers the screen; only a normal window, used without the layer shell,
+// changes size.
+func (s *PanelService) SetExpanded(expanded bool) { s.panel.setExpanded(expanded) }
 
 // AppsService lists and opens the catalog apps.
 type AppsService struct {
@@ -51,6 +59,60 @@ func (s *AppsService) Launch(command string) error {
 
 // panelUnmapDelay lets the compositor take the hidden panel off screen.
 const panelUnmapDelay = 200 * time.Millisecond
+
+// StoreService lists the catalog with each app's state and installs,
+// updates, and removes Flathub apps. Operations run in the background and
+// report through "store" events; a change to what is installed also sends
+// "apps".
+type StoreService struct {
+	store    *store.Store
+	launcher *apps.Launcher
+}
+
+// storeCallTimeout bounds calls that ask Flathub over the network.
+const storeCallTimeout = 30 * time.Second
+
+// Available reports whether Flatpak apps can be installed.
+func (s *StoreService) Available() bool { return s.store.Available() }
+
+// Items returns the catalog with each app's state.
+func (s *StoreService) Items() ([]store.Item, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), storeCallTimeout)
+	defer cancel()
+	return s.store.Items(ctx, s.launcher.Installed)
+}
+
+// Info returns an app's download and installed sizes.
+func (s *StoreService) Info(appID string) (flatpak.Info, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), storeCallTimeout)
+	defer cancel()
+	return s.store.Info(ctx, appID)
+}
+
+// Install queues an app's installation.
+func (s *StoreService) Install(appID string) error { return s.start(appID, store.Install) }
+
+// Update queues an app's update.
+func (s *StoreService) Update(appID string) error { return s.start(appID, store.Update) }
+
+// Remove queues an app's removal. Its data stays.
+func (s *StoreService) Remove(appID string) error { return s.start(appID, store.Remove) }
+
+// Cancel stops an app's operation or drops it from the queue.
+func (s *StoreService) Cancel(appID string) { s.store.Cancel(appID) }
+
+// Jobs returns the running and queued operations.
+func (s *StoreService) Jobs() []store.Job { return s.store.Jobs() }
+
+func (s *StoreService) start(appID string, action store.Action) error {
+	ctx, cancel := context.WithTimeout(context.Background(), storeCallTimeout)
+	defer cancel()
+	err := s.store.Start(ctx, appID, action)
+	if err != nil {
+		log.Printf("%s %s: %v", action, appID, err)
+	}
+	return err
+}
 
 // TimerService runs the sleep timer.
 type TimerService struct {

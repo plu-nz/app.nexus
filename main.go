@@ -13,10 +13,12 @@ import (
 	"github.com/plu-nz/app.nexus/internal/apps"
 	"github.com/plu-nz/app.nexus/internal/audio"
 	"github.com/plu-nz/app.nexus/internal/brightness"
+	"github.com/plu-nz/app.nexus/internal/flatpak"
 	"github.com/plu-nz/app.nexus/internal/gtktheme"
 	"github.com/plu-nz/app.nexus/internal/instance"
 	"github.com/plu-nz/app.nexus/internal/layershell"
 	"github.com/plu-nz/app.nexus/internal/sleeptimer"
+	"github.com/plu-nz/app.nexus/internal/store"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -32,6 +34,31 @@ type panel struct {
 	visible   bool
 	hideTimer *time.Timer
 	epoch     uint64
+	// overlay is set once the window is a layer-shell overlay that covers
+	// the screen.
+	overlay bool
+}
+
+// Window sizes without the layer shell: the panel alone, and the panel
+// with the store open.
+const (
+	windowWidth = 1280
+	panelHeight = 300
+	storeHeight = 720
+)
+
+func (p *panel) setExpanded(expanded bool) {
+	p.mu.Lock()
+	overlay := p.overlay
+	p.mu.Unlock()
+	if overlay {
+		return
+	}
+	height := panelHeight
+	if expanded {
+		height = storeHeight
+	}
+	application.InvokeSync(func() { p.window.SetSize(windowWidth, height) })
 }
 
 func (p *panel) show() {
@@ -98,6 +125,23 @@ func main() {
 
 	p := &panel{}
 	themes := &ThemeService{}
+	launcher := apps.New()
+	catalog := &store.Store{
+		Catalog: launcher.Catalog,
+		Icon:    launcher.Icons.DataURL,
+		Notify:  func(job store.Job) { p.app.Event.Emit("store", job) },
+		Changed: func() {
+			if launcher.Forget != nil {
+				launcher.Forget()
+			}
+			p.app.Event.Emit("apps")
+		},
+	}
+	// Assigned only when present: a nil *Flatpak in the interface would
+	// not compare equal to nil.
+	if fp := flatpak.New(); fp != nil {
+		catalog.Flatpak = fp
+	}
 	timer := sleeptimer.New(func() error {
 		err := exec.Command("systemctl", "suspend").Run()
 		if err != nil {
@@ -111,7 +155,8 @@ func main() {
 		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Services: []application.Service{
 			application.NewService(&PanelService{panel: p}),
-			application.NewService(&AppsService{launcher: apps.New(), panel: p}),
+			application.NewService(&AppsService{launcher: launcher, panel: p}),
+			application.NewService(&StoreService{store: catalog, launcher: launcher}),
 			application.NewService(&TimerService{timer: timer, panel: p}),
 			application.NewService(&DisplayService{control: brightness.New()}),
 			application.NewService(&AudioService{mixer: audio.New()}),
@@ -120,8 +165,8 @@ func main() {
 	})
 	p.window = p.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Nexus",
-		Width:     1280,
-		Height:    300,
+		Width:     windowWidth,
+		Height:    panelHeight,
 		Frameless: true,
 		// Shown once it is set up as an overlay; see below.
 		Hidden:      true,
@@ -141,8 +186,14 @@ func main() {
 			}
 			setup.Do(func() {
 				// NEXUS_WINDOWED keeps a normal window, for development.
-				if os.Getenv("NEXUS_WINDOWED") == "" && !layershell.Init(p.window.NativeWindow(), os.Getenv("NEXUS_OUTPUT")) {
-					log.Print("the compositor has no layer shell; showing a normal window")
+				if os.Getenv("NEXUS_WINDOWED") == "" {
+					if layershell.Init(p.window.NativeWindow(), os.Getenv("NEXUS_OUTPUT")) {
+						p.mu.Lock()
+						p.overlay = true
+						p.mu.Unlock()
+					} else {
+						log.Print("the compositor has no layer shell; showing a normal window")
+					}
 				}
 				layershell.Transparent(p.window.NativeWindow())
 				watchTheme(p, themes)

@@ -39,7 +39,10 @@ pnpm install          # dependencies
 pnpm build            # frontend/dist + build/nexus
 pnpm check            # tsc, go vet, go test
 ./scripts/install.sh  # install for the current user
+scripts/package.sh <version>  # release archive in build/release/ (after pnpm build)
 ```
+
+Releases: push a `v<version>` tag after bumping `package.json`; `.github/workflows/release.yml` builds and publishes the archive. The landing page lives in `site/`, a separate pnpm project with its own `README.md`; keep its install steps in sync with `scripts/install.sh` and `scripts/package.sh`.
 
 ## Testing in a real window
 

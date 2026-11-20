@@ -1,5 +1,7 @@
 # Nexus
 
+Website and downloads: [nexus.plu.nz](https://nexus.plu.nz/).
+
 Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from the bottom of the screen over whatever is playing and offers:
 
 - the TV apps: Lounge and VacuumTube, with their own icons, when they are installed;
@@ -19,11 +21,21 @@ The panel closes with Back or Escape.
 
 ## Install
 
+Download `nexus-linux-x86_64.tar.gz` from the [latest release](https://github.com/plu-nz/app.nexus/releases/latest), install the libraries, and run the installer inside the archive:
+
+```sh
+sudo pacman -S --needed gtk4 webkitgtk-6.0 gtk4-layer-shell brightnessctl
+tar -xzf nexus-linux-x86_64.tar.gz
+cd nexus-*/ && ./install.sh
+```
+
+Release archives are built on Arch Linux for x86_64. To build from source instead, run the same script from the repository:
+
 ```sh
 ./scripts/install.sh
 ```
 
-This builds Nexus and installs `nexus`, the `nexus-toggle` command, and a desktop entry for the current user. Bind `nexus-toggle` to a key or a remote button; on this Omarchy setup it is the air mouse's Power button, which udev remaps to F19. The first press starts Nexus, later presses show and hide the panel.
+Either way, it installs `nexus`, the `nexus-toggle` command, a desktop entry, and an icon for the current user. Bind `nexus-toggle` to a key or a remote button; on this Omarchy setup it is the air mouse's Power button, which udev remaps to F19. The first press starts Nexus, later presses show and hide the panel.
 
 Nexus keeps running while hidden, so the sleep timer survives. To load a new version, stop the running one with `systemctl --user stop plunz-nexus`.
 
@@ -61,4 +73,8 @@ NEXUS_WINDOWED=1 ./build/nexus
 
 ## Scope
 
-The app catalog is fixed in `internal/apps`: Nexus only starts the apps listed there. Packaging beyond the per-user install is a next step.
+The app catalog is fixed in `internal/apps`: Nexus only starts the apps listed there. Packaging beyond the per-user install and the x86_64 release archive is a next step.
+
+## Releases and website
+
+Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml): it builds Nexus in an Arch Linux container and publishes `nexus-linux-x86_64.tar.gz` with its SHA-256 sum through [scripts/package.sh](scripts/package.sh). The landing page in [site/](site/README.md) links to that archive and is deployed separately to nexus.plu.nz.

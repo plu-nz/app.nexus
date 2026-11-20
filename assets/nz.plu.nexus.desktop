@@ -3,6 +3,7 @@ Type=Application
 Name=Nexus
 Comment=TV apps and controls
 Exec=nexus-toggle
+Icon=nz.plu.nexus
 Terminal=false
 Categories=AudioVideo;Utility;
 StartupWMClass=nz.plu.nexus

@@ -1,0 +1,35 @@
+name: Release
+
+# Pushing a v* tag builds Nexus on Arch Linux and publishes the
+# x86_64 archive and its checksum as a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    timeout-minutes: 30
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git go github-cli gtk4 webkitgtk-6.0 gtk4-layer-shell
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.1
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Package
+        run: scripts/package.sh "${GITHUB_REF_NAME#v}"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/release/*.tar.gz build/release/*.sha256 --repo "$GITHUB_REPOSITORY" --title "Nexus ${GITHUB_REF_NAME#v}" --generate-notes

@@ -33,6 +33,7 @@ The app is one Go binary built with Wails 3. The window is GTK 4 with WebKitGTK 
 - Use `rem` for sizes. The root font size scales with the screen width.
 - Style with the `--plz-*` tokens in `frontend/src/style.css`, never hard-coded colors, so the panel follows the GTK theme. Black is fine only for the scrim over other content.
 - Only run fixed commands with fixed arguments; never pass user input to a shell. The app catalog stays explicit.
+- Catalog apps run natively on Linux. Never add Android apps, through Waydroid or any other Android compatibility layer, even when a TV app exists only for Android.
 - Keep services thin and put logic in `internal/` packages with Go tests.
 - Pin dependencies. Use pnpm only.
 

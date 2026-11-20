@@ -86,7 +86,7 @@ NEXUS_WINDOWED=1 ./build/nexus
 
 ## Scope
 
-The app catalog is fixed in `internal/apps`: Nexus only starts, installs, updates, and removes the apps listed there. A catalog entry works with the arrow keys, Enter, and Back, and fills the screen. Its window class was checked by running the app, so Nexus can bring it to the front. Packaging beyond the per-user install and the x86_64 release archive is a next step.
+The app catalog is fixed in `internal/apps`: Nexus only starts, installs, updates, and removes the apps listed there. A catalog entry runs natively on Linux, works with the arrow keys, Enter, and Back, and fills the screen. Nexus never offers Android apps, through Waydroid or any other Android layer. Its window class was checked by running the app, so Nexus can bring it to the front. Packaging beyond the per-user install and the x86_64 release archive is a next step.
 
 ## Releases and website
 

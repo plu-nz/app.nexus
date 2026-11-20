@@ -12,7 +12,7 @@ export const panel = {
   hide: () => call('PanelService.Hide'),
   /** onShown runs every time the panel appears. */
   onShown: (fn: () => void) => Events.On('shown', fn),
-  /** onHidden resets the opening transition while the window is unmapped. */
+  /** onHidden conceals the panel before the window is unmapped. */
   onHidden: (fn: () => void) => Events.On('hidden', fn),
 };
 

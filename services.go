@@ -45,7 +45,7 @@ func (s *AppsService) Launch(command string) error {
 }
 
 // panelUnmapDelay lets the compositor take the hidden panel off screen.
-const panelUnmapDelay = 150 * time.Millisecond
+const panelUnmapDelay = 200 * time.Millisecond
 
 // TimerService runs the sleep timer.
 type TimerService struct {

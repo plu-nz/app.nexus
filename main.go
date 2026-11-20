@@ -26,24 +26,59 @@ var assets embed.FS
 
 // panel shows and hides the Nexus window.
 type panel struct {
-	app    *application.App
-	window *application.WebviewWindow
+	app       *application.App
+	window    *application.WebviewWindow
+	mu        sync.Mutex
+	visible   bool
+	hideTimer *time.Timer
+	epoch     uint64
 }
 
 func (p *panel) show() {
+	p.mu.Lock()
+	p.epoch++
+	if p.hideTimer != nil {
+		p.hideTimer.Stop()
+		p.hideTimer = nil
+	}
+	p.visible = true
+	p.mu.Unlock()
 	p.window.Show()
 	// The UI refreshes its state and moves focus to the apps.
 	p.app.Event.Emit("shown")
 }
 
 func (p *panel) hide() {
-	p.window.Hide()
+	p.mu.Lock()
+	if !p.visible {
+		p.mu.Unlock()
+		return
+	}
+	p.visible = false
+	p.epoch++
+	epoch := p.epoch
+	p.hideTimer = time.AfterFunc(150*time.Millisecond, func() {
+		application.InvokeSync(func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if p.epoch == epoch && !p.visible {
+				p.window.Hide()
+				p.hideTimer = nil
+			}
+		})
+	})
+	p.mu.Unlock()
+	// Let WebKit paint the concealed panel before unmapping the layer. Otherwise
+	// Hyprland briefly reuses the last visible buffer on the next show.
 	p.app.Event.Emit("hidden")
 }
 
 func (p *panel) toggle() {
 	application.InvokeSync(func() {
-		if p.window.IsVisible() {
+		p.mu.Lock()
+		visible := p.visible
+		p.mu.Unlock()
+		if visible {
 			p.hide()
 		} else {
 			p.show()

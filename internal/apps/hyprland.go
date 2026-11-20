@@ -75,15 +75,23 @@ func newestWindow(clients, class string) (string, error) {
 	return list[best].Address, nil
 }
 
-// focusScript is the Hyprland Lua that shows a window: out of a special
-// (scratch) workspace onto the current one, focused, and fullscreen, as a
-// TV app should be. address must already be validated.
+// focusScript is the Hyprland Lua that shows a window as a TV app: out of
+// a special (scratch) workspace onto the current one, any other fullscreen
+// window on that workspace back to normal, then focused and fullscreen.
+// address must already be validated.
 func focusScript(address string) string {
 	return `local w = hl.get_window('address:` + address + `')
 if w then
+  local target = w.workspace
   local active = hl.get_active_workspace()
-  if w.workspace and w.workspace.special and active and not active.special then
+  if target and target.special and active and not active.special then
     hl.dispatch(hl.dsp.window.move({ window = w, workspace = active.name, follow = false }))
+    target = active
+  end
+  for _, other in ipairs(hl.get_windows()) do
+    if other.stable_id ~= w.stable_id and target and other.workspace and other.workspace.id == target.id then
+      hl.dispatch(hl.dsp.window.fullscreen({ window = other, action = 'unset' }))
+    end
   end
   hl.dispatch(hl.dsp.focus({ window = w }))
   hl.dispatch(hl.dsp.window.fullscreen({ window = w, mode = 'fullscreen', action = 'set' }))

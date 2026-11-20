@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"log"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/plu-nz/app.nexus/internal/apps"
 	"github.com/plu-nz/app.nexus/internal/audio"
@@ -30,14 +32,21 @@ type AppsService struct {
 // List returns the installed catalog apps.
 func (s *AppsService) List() []apps.App { return s.launcher.Available() }
 
-// Launch opens a catalog app and hides the panel so the app is in front.
+// Launch hides the panel and opens a catalog app. The panel goes first:
+// while it is on screen it holds the keyboard, and the compositor would
+// not move focus to the app.
 func (s *AppsService) Launch(command string) error {
-	if err := s.launcher.Launch(command); err != nil {
-		return err
-	}
 	s.panel.hide()
-	return nil
+	time.Sleep(panelUnmapDelay)
+	err := s.launcher.Launch(command)
+	if err != nil {
+		log.Printf("opening %s: %v", command, err)
+	}
+	return err
 }
+
+// panelUnmapDelay lets the compositor take the hidden panel off screen.
+const panelUnmapDelay = 150 * time.Millisecond
 
 // TimerService runs the sleep timer.
 type TimerService struct{ timer *sleeptimer.Timer }

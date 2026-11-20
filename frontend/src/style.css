@@ -186,6 +186,30 @@ button.focused {
   color: var(--plz-accent);
 }
 
+.close-all-tile.focused,
+.danger-button.focused {
+  background: var(--plz-danger);
+  border-color: var(--plz-danger);
+  color: var(--plz-on-accent);
+}
+
+.close-all-icon {
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: var(--plz-danger);
+  color: var(--plz-on-accent);
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.close-all-tile.focused .close-all-icon {
+  background: var(--plz-on-accent);
+  color: var(--plz-danger);
+}
+
 .control-tile {
   gap: 0.3rem;
 }

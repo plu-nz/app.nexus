@@ -53,6 +53,47 @@ func (h *Hyprland) Focus(class string) (bool, error) {
 	return true, err
 }
 
+// CloseAll asks Hyprland to close every window with an allowed class.
+func (h *Hyprland) CloseAll(classes []string) (int, error) {
+	out, err := h.Run("hyprctl", "-j", "clients")
+	if err != nil {
+		return 0, err
+	}
+	addresses, err := matchingWindows(out, classes)
+	if err != nil || len(addresses) == 0 {
+		return 0, err
+	}
+	var script strings.Builder
+	for _, address := range addresses {
+		fmt.Fprintf(&script, "local w = hl.get_window('address:%s'); if w then hl.dispatch(hl.dsp.window.close({ window = w })) end\n", address)
+	}
+	out, err = h.Run("hyprctl", "eval", script.String())
+	if err == nil && strings.HasPrefix(strings.TrimSpace(out), "Error") {
+		err = fmt.Errorf("hyprctl: %s", strings.TrimSpace(out))
+	}
+	return len(addresses), err
+}
+
+// matchingWindows keeps only windows of explicitly allowed classes and valid
+// addresses before they are used in a Hyprland command.
+func matchingWindows(clients string, classes []string) ([]string, error) {
+	allowed := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		allowed[class] = true
+	}
+	var list []client
+	if err := json.Unmarshal([]byte(clients), &list); err != nil {
+		return nil, fmt.Errorf("reading hyprctl clients: %w", err)
+	}
+	var addresses []string
+	for _, c := range list {
+		if allowed[c.Class] && addressPattern.MatchString(c.Address) {
+			addresses = append(addresses, c.Address)
+		}
+	}
+	return addresses, nil
+}
+
 // newestWindow returns the address of the most recently focused window of
 // class in `hyprctl -j clients`, or "" when there is none.
 func newestWindow(clients, class string) (string, error) {

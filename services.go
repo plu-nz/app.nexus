@@ -31,6 +31,11 @@ type AppsService struct {
 // List returns the installed catalog apps.
 func (s *AppsService) List() []apps.App { return s.launcher.Available() }
 
+// CloseAll asks the compositor to close every open catalog app window.
+func (s *AppsService) CloseAll() (int, error) {
+	return s.launcher.CloseAll()
+}
+
 // Launch hides the panel and opens a catalog app. The panel goes first:
 // while it is on screen it holds the keyboard, and the compositor would
 // not move focus to the app.

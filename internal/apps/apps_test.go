@@ -132,6 +132,39 @@ func TestLaunchWaitsForAStartingApp(t *testing.T) {
 	}
 }
 
+func TestCloseAllOnlyCatalogAppsAndClearsStartupGrace(t *testing.T) {
+	l, started := testLauncher("lounge")
+	l.Focus = func(string) (bool, error) { return false, nil }
+	var classes []string
+	l.CloseWindows = func(got []string) (int, error) {
+		classes = got
+		return 2, nil
+	}
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := l.CloseAll(); count != 2 || err != nil {
+		t.Fatalf("CloseAll = %d, %v", count, err)
+	}
+	if want := []string{"nz.plu.lounge", "rocks.shy.VacuumTube"}; !reflect.DeepEqual(classes, want) {
+		t.Fatalf("classes %v, want %v", classes, want)
+	}
+	if err := l.Launch("lounge"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*started) != 2 {
+		t.Fatalf("started %v, want relaunch after close", *started)
+	}
+}
+
+func TestCloseAllNoWindow(t *testing.T) {
+	l, _ := testLauncher("lounge")
+	l.CloseWindows = func([]string) (int, error) { return 0, nil }
+	if count, err := l.CloseAll(); count != 0 || err != nil {
+		t.Fatalf("CloseAll = %d, %v; want no open window", count, err)
+	}
+}
+
 const clientsJSON = `[
  {"address":"0x5a1","class":"nz.plu.lounge","focusHistoryID":4},
  {"address":"0x5a2","class":"nz.plu.lounge","focusHistoryID":1},
@@ -177,5 +210,40 @@ func TestHyprlandFocus(t *testing.T) {
 	}
 	if _, err := h.Focus("nz.plu.lounge"); err == nil {
 		t.Fatal("Focus hid a Lua error")
+	}
+}
+
+func TestHyprlandCloseAll(t *testing.T) {
+	var script string
+	h := &Hyprland{Run: func(name string, args ...string) (string, error) {
+		if args[0] == "-j" {
+			return clientsJSON, nil
+		}
+		script = args[len(args)-1]
+		return "ok", nil
+	}}
+	count, err := h.CloseAll([]string{"nz.plu.lounge", "rocks.shy.VacuumTube"})
+	if count != 3 || err != nil {
+		t.Fatalf("CloseAll = %d, %v", count, err)
+	}
+	for _, address := range []string{"0x5a1", "0x5a2", "0x5a3"} {
+		if !strings.Contains(script, "address:"+address) {
+			t.Errorf("CloseAll script lacks %s: %s", address, script)
+		}
+	}
+	if strings.Contains(script, "bad;rm") || strings.Contains(script, "evil") {
+		t.Fatalf("CloseAll included unknown window: %s", script)
+	}
+	if count, err := h.CloseAll([]string{"kodi"}); count != 0 || err != nil {
+		t.Fatalf("CloseAll(kodi) = %d, %v", count, err)
+	}
+	h.Run = func(name string, args ...string) (string, error) {
+		if args[0] == "-j" {
+			return clientsJSON, nil
+		}
+		return "Error: bad script", nil
+	}
+	if _, err := h.CloseAll([]string{"nz.plu.lounge"}); err == nil {
+		t.Fatal("CloseAll hid a Lua error")
 	}
 }

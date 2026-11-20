@@ -11,6 +11,7 @@ trackFocus();
 
 const [status, setStatus] = createSignal('');
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
+const backKeys = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack', 'XF86Back', 'Back']);
 
 /** say shows a message in the header for a few seconds. */
 function say(message: string) {
@@ -48,7 +49,7 @@ function AppTile(props: { app: TVApp }) {
     void attempt(() => appsApi.launch(props.app.command));
   };
   return (
-    <button class="app" data-nav onClick={open}>
+    <button class="app" data-nav data-app-tile onClick={open}>
       <Show when={props.app.icon} fallback={<span class="glyph">{props.app.name.slice(0, 1)}</span>}>
         <img src={props.app.icon} alt="" />
       </Show>
@@ -97,15 +98,19 @@ function Panel() {
   const [brightness, { refetch: refetchBrightness, mutate: setBrightness }] = createResource(() => orNull(display.brightness()));
   const [sleep, { refetch: refetchSleep, mutate: setSleep }] = createResource(() => timer.state());
   const [confirmSuspend, setConfirmSuspend] = createSignal(false);
+  const [confirmCloseApps, setConfirmCloseApps] = createSignal(false);
+  const [showCloseApps, setShowCloseApps] = createSignal(false);
   const [revealed, setRevealed] = createSignal(false);
 
-  const focusApps = () => queueMicrotask(() => focusFirst('.app'));
+  const firstAppButton = () => document.querySelector<HTMLButtonElement>('[data-app-tile]');
+  const focusApps = () => queueMicrotask(() => focusFirst('[data-app-tile]'));
   let volumeButton: HTMLButtonElement | undefined;
   let outputButton: HTMLButtonElement | undefined;
   let brightnessButton: HTMLButtonElement | undefined;
   let sleepButton: HTMLButtonElement | undefined;
-  let cancelSuspendButton: HTMLButtonElement | undefined;
-  let suspendButton: HTMLButtonElement | undefined;
+  let closeAppsButton: HTMLButtonElement | undefined;
+  let cancelDialogButton: HTMLButtonElement | undefined;
+  let confirmDialogButton: HTMLButtonElement | undefined;
   let outputQueue = Promise.resolve();
   let outputRevision = 0;
   let sleepQueue = Promise.resolve();
@@ -136,6 +141,8 @@ function Panel() {
       });
       say('');
       setConfirmSuspend(false);
+      setConfirmCloseApps(false);
+      setShowCloseApps(false);
       refetchVolume();
       refetchOutputs();
       refetchBrightness();
@@ -143,27 +150,43 @@ function Panel() {
       void Promise.resolve(refetchApps()).then(focusApps);
     }),
   );
-  onCleanup(panel.onHidden(cancelReveal));
+  onCleanup(panel.onHidden(() => {
+    cancelReveal();
+    setShowCloseApps(false);
+  }));
 
   const poll = setInterval(refetchSleep, 30_000);
   onCleanup(() => clearInterval(poll));
 
   const onKey = (e: KeyboardEvent) => {
-    if (confirmSuspend()) {
-      if (e.key === 'Escape' || e.key === 'Backspace') {
+    if (confirmSuspend() || confirmCloseApps()) {
+      if (backKeys.has(e.key)) {
         e.preventDefault();
-        closeSuspendDialog();
+        closeDialog();
       } else if (e.key.startsWith('Arrow')) {
         e.preventDefault();
-        if (e.key === 'ArrowLeft') cancelSuspendButton?.focus();
-        if (e.key === 'ArrowRight') suspendButton?.focus();
+        if (e.key === 'ArrowLeft') cancelDialogButton?.focus();
+        if (e.key === 'ArrowRight') confirmDialogButton?.focus();
       } else if (e.key === 'Tab') {
         e.preventDefault();
-        (document.activeElement === cancelSuspendButton ? suspendButton : cancelSuspendButton)?.focus();
+        (document.activeElement === cancelDialogButton ? confirmDialogButton : cancelDialogButton)?.focus();
       }
       return;
     }
     const focused = document.activeElement;
+    if (e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey && !e.metaKey && focused === firstAppButton()) {
+      e.preventDefault();
+      setShowCloseApps(true);
+      queueMicrotask(() => closeAppsButton?.focus());
+      return;
+    }
+    if (focused === closeAppsButton &&
+        (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || backKeys.has(e.key))) {
+      e.preventDefault();
+      setShowCloseApps(false);
+      queueMicrotask(() => firstAppButton()?.focus());
+      return;
+    }
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
         (focused === volumeButton || focused === outputButton || focused === brightnessButton || focused === sleepButton)) {
       e.preventDefault();
@@ -175,7 +198,7 @@ function Panel() {
       return;
     }
     if (handleKey(e)) return;
-    if (e.key === 'Escape' || e.key === 'Backspace') {
+    if (backKeys.has(e.key)) {
       e.preventDefault();
       void panel.hide();
     }
@@ -236,12 +259,20 @@ function Panel() {
 
   const openSuspendDialog = () => {
     setConfirmSuspend(true);
-    queueMicrotask(() => cancelSuspendButton?.focus());
+    queueMicrotask(() => cancelDialogButton?.focus());
   };
 
-  const closeSuspendDialog = () => {
+  const openCloseAppsDialog = () => {
+    setConfirmCloseApps(true);
+    queueMicrotask(() => cancelDialogButton?.focus());
+  };
+
+  const closeDialog = () => {
+    const fromCloseApps = confirmCloseApps();
     setConfirmSuspend(false);
-    queueMicrotask(() => sleepButton?.focus());
+    setConfirmCloseApps(false);
+    if (fromCloseApps) setShowCloseApps(false);
+    queueMicrotask(() => (fromCloseApps ? firstAppButton() : sleepButton)?.focus());
   };
 
   const suspendNow = async () => {
@@ -249,6 +280,18 @@ function Panel() {
     await sleepQueue;
     await attempt(timer.suspendNow);
     refetchSleep();
+  };
+
+  const closeAllApps = async () => {
+    setConfirmCloseApps(false);
+    setShowCloseApps(false);
+    firstAppButton()?.focus();
+    try {
+      const count = await appsApi.closeAll();
+      say(t(count ? 'closingWindows' : 'noOpenApps', { n: count }));
+    } catch (err) {
+      say(errorText(err));
+    }
   };
 
   return (
@@ -266,6 +309,14 @@ function Panel() {
         </header>
 
         <section class="tiles" aria-label={t('controls')}>
+          <Show when={showCloseApps()}>
+            <button class="app close-all-tile" data-nav ref={closeAppsButton} aria-description={t('closeAppsHint')} onClick={openCloseAppsDialog} onFocusOut={() => {
+              if (!confirmCloseApps()) setShowCloseApps(false);
+            }}>
+              <span class="close-all-icon" aria-hidden="true">×</span>
+              <span>{t('closeApps')}</span>
+            </button>
+          </Show>
           <For each={apps() ?? []}>{(app) => <AppTile app={app} />}</For>
           <Show when={!apps.loading && !apps()?.length}>
             <p class="empty">{t('empty')}</p>
@@ -278,14 +329,15 @@ function Panel() {
             ref={(el) => (volumeButton = el)}
             onClick={toggleMute}
           />
-          <ControlTile
-            label={t('output')}
-            value={currentOutput()?.name ?? t('unavailable')}
-            disabled={(outputs()?.length ?? 0) < 2}
-            description={t('outputHint')}
-            ref={(el) => (outputButton = el)}
-            onClick={() => void stepOutput(1)}
-          />
+          <Show when={(outputs()?.length ?? 0) > 1}>
+            <ControlTile
+              label={t('output')}
+              value={currentOutput()?.name ?? t('unavailable')}
+              description={t('outputHint')}
+              ref={(el) => (outputButton = el)}
+              onClick={() => void stepOutput(1)}
+            />
+          </Show>
           <ControlTile
             label={t('brightness')}
             value={brightness() != null ? `${brightness()}%` : t('unavailable')}
@@ -308,8 +360,20 @@ function Panel() {
               <h2 id="suspend-title">{t('suspendNow')}</h2>
               <p id="suspend-description">{t('suspendConfirm')}</p>
               <div class="dialog-actions">
-                <button data-nav ref={cancelSuspendButton} onClick={closeSuspendDialog}>{t('cancel')}</button>
-                <button data-nav ref={suspendButton} onClick={() => void suspendNow()}>{t('suspend')}</button>
+                <button data-nav ref={cancelDialogButton} onClick={closeDialog}>{t('cancel')}</button>
+                <button data-nav ref={confirmDialogButton} onClick={() => void suspendNow()}>{t('suspend')}</button>
+              </div>
+            </div>
+          </div>
+        </Show>
+        <Show when={confirmCloseApps()}>
+          <div class="dialog-backdrop">
+            <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="close-apps-title" aria-describedby="close-apps-description">
+              <h2 id="close-apps-title">{t('closeAppsConfirmTitle')}</h2>
+              <p id="close-apps-description">{t('closeAppsConfirm')}</p>
+              <div class="dialog-actions">
+                <button data-nav ref={cancelDialogButton} onClick={closeDialog}>{t('cancel')}</button>
+                <button class="danger-button" data-nav ref={confirmDialogButton} onClick={() => void closeAllApps()}>{t('closeApps')}</button>
               </div>
             </div>
           </div>

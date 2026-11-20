@@ -3,15 +3,18 @@
 Nexus is a TV panel for Linux, made for a couch and a remote. It slides up from the bottom of the screen over whatever is playing and offers:
 
 - the TV apps: Lounge and VacuumTube, with their own icons, when they are installed;
+- a hidden Close apps button to the left of the apps, revealed with Left from the leftmost app; its confirmation closes every open window of the catalog apps;
 - a single horizontal row for apps, volume, audio output, brightness, and the sleep timer;
 - Up/Down on volume adjusts by 5%; Enter mutes or unmutes;
-- Up/Down on output switches between audio devices; Enter selects the next one;
+- when at least two audio outputs are available, Up/Down on output switches between them and Enter selects the next one;
 - Up/Down on brightness adjusts by 10%; Enter increases it by 10%;
 - Up/Down on sleep changes the remaining timer by 15 minutes, from off to four hours; Enter opens a confirmation dialog to suspend immediately;
 - automatic language selection (English, Portuguese, or Spanish) from the system;
 - colors that follow the desktop's GTK theme.
 
-Everything works with the arrow keys, Enter, and Back (Escape or Backspace), so any remote that sends keyboard keys can drive it. Opening an app hides the panel. On Hyprland, an app that is already open is brought to the front, fullscreen, instead of starting again; a second press while it is still starting is ignored.
+Everything works with the arrow keys, Enter, and Back (Escape, Backspace, GoBack, BrowserBack, XF86Back, or Back), so any remote that sends keyboard keys can drive it. Opening an app hides the panel. On Hyprland, an app that is already open is brought to the front, fullscreen, instead of starting again; a second press while it is still starting is ignored.
+On Hyprland, confirming Close apps closes every open Lounge and VacuumTube window. The panel stays open.
+Right, Up, Down, or Back from the Close apps button hides it and returns focus to the first app. Canceling the confirmation hides it too.
 The panel closes with Back or Escape.
 
 ## Install

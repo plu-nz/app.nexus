@@ -52,6 +52,8 @@ type Launcher struct {
 	// whether there was one. Nil means windows cannot be found, so every
 	// launch starts the app.
 	Focus func(class string) (bool, error)
+	// CloseWindows asks the compositor to close all windows of catalog classes.
+	CloseWindows func(classes []string) (int, error)
 	// Now is the clock; tests replace it.
 	Now func() time.Time
 
@@ -68,8 +70,30 @@ func New() *Launcher {
 	l := &Launcher{Catalog: Catalog, Installed: installed, Start: start, Icons: SystemIcons(), Now: time.Now}
 	if h := NewHyprland(); h != nil {
 		l.Focus = h.Focus
+		l.CloseWindows = h.CloseAll
 	}
 	return l
+}
+
+// CloseAll asks the compositor to close every open window of catalog apps.
+// It returns the number of windows that received a close request.
+func (l *Launcher) CloseAll() (int, error) {
+	if l.CloseWindows == nil {
+		return 0, errors.New("closing apps is unavailable on this compositor")
+	}
+	classes := make([]string, 0, len(l.Catalog))
+	for _, a := range l.Catalog {
+		if a.Class != "" {
+			classes = append(classes, a.Class)
+		}
+	}
+	closed, err := l.CloseWindows(classes)
+	if err == nil {
+		l.mu.Lock()
+		clear(l.launched)
+		l.mu.Unlock()
+	}
+	return closed, err
 }
 
 // Available returns the installed catalog apps, with their icons.

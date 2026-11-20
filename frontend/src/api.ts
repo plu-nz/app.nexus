@@ -19,6 +19,7 @@ export const panel = {
 export const appsApi = {
   list: () => call<TVApp[]>('AppsService.List'),
   launch: (command: string) => call('AppsService.Launch', command),
+  closeAll: () => call<number>('AppsService.CloseAll'),
 };
 
 export const timer = {
